@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.test-tmp/
+
+# runtime data (player profile etc.)
+data/
+
+# training artifacts — the shipped brain is ckpt/brain.fp16.pt
+ckpt/last.pt
+ckpt/tokens.pt
+ckpt/train_log.jsonl
+ckpt/train.out
+ckpt/train2.out

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MIND MELD — it knows what you're thinking</title>
+<style>
+  :root {
+    --bg1: #12071f; --bg2: #2a0f45; --purple: #a56cff; --gold: #ffd166;
+    --cyan: #7df0ff; --green: #7dffa8; --red: #ff7d92; --ink: #efe8ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(ellipse at 50% -20%, var(--bg2), var(--bg1) 70%);
+    color: var(--ink); min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 24px 16px 64px;
+  }
+  h1 { font-size: clamp(28px, 6vw, 44px); letter-spacing: 0.35em; color: var(--gold);
+       text-shadow: 0 0 24px rgba(255, 209, 102, 0.5); margin: 12px 0 2px; }
+  .tagline { color: var(--cyan); opacity: 0.85; font-style: italic; margin-bottom: 18px; }
+  #streak { color: var(--gold); font-size: 14px; margin-bottom: 14px; min-height: 18px; }
+
+  #genie { width: 180px; height: 190px; position: relative; margin: 6px auto 10px;
+           animation: float 3.4s ease-in-out infinite; transition: transform .3s; }
+  @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
+  #genie .head { position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      width: 110px; height: 95px; background: linear-gradient(160deg, var(--purple), #6d3bd4);
+      border-radius: 50% 50% 46% 46%; box-shadow: 0 0 40px rgba(165,108,255,.55), inset 0 -12px 24px rgba(0,0,0,.28); }
+  #genie .eye { position: absolute; top: 38px; width: 16px; height: 20px; background: #fff;
+      border-radius: 50%; animation: blink 4.2s infinite; }
+  #genie .eye::after { content:""; position: absolute; top: 6px; left: 5px; width: 7px; height: 8px;
+      background: #241040; border-radius: 50%; }
+  #genie .eye.l { left: 26px; } #genie .eye.r { right: 26px; }
+  @keyframes blink { 0%, 92%, 100% { transform: scaleY(1) } 96% { transform: scaleY(.08) } }
+  #genie .mouth { position: absolute; top: 68px; left: 50%; transform: translateX(-50%);
+      width: 30px; height: 12px; border: 3px solid #2c1350; border-top: none;
+      border-radius: 0 0 40px 40px; }
+  #genie.happy .mouth { height: 16px; background: #2c1350; }
+  #genie.shook { animation: shake .5s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+  #genie .tail { position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+      width: 70px; height: 80px; background: linear-gradient(180deg, #6d3bd4, transparent 85%);
+      border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%; filter: blur(1px); opacity: .9; }
+  #genie .orb { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      width: 16px; height: 16px; border-radius: 50%; background: var(--cyan);
+      box-shadow: 0 0 18px var(--cyan); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{ transform: translateX(-50%) scale(1) } 50%{ transform: translateX(-50%) scale(1.35) } }
+
+  #card { width: 100%; max-width: 460px; background: rgba(255,255,255,.05);
+      border: 1px solid rgba(165,108,255,.35); border-radius: 16px; padding: 20px;
+      min-height: 150px; backdrop-filter: blur(6px); }
+  #say { min-height: 60px; font-size: 17px; line-height: 1.5; }
+  #say .genie-line { color: var(--purple); font-weight: 600; }
+  #question { font-size: 21px; font-weight: 700; color: var(--ink); margin: 10px 0 14px;
+      padding: 10px 14px; border-left: 4px solid var(--gold); background: rgba(255,209,102,.07);
+      border-radius: 0 10px 10px 0; display: none; }
+  #qlabel { font-size: 11px; letter-spacing: .35em; color: var(--gold); opacity: .9;
+      display: none; margin-top: 16px; }
+  #player-q { font-size: 15px; color: var(--cyan); font-style: italic; margin-top: 10px; display: none; }
+  @media (max-height: 720px) {
+    #genie { transform: scale(.62); margin: -24px auto -18px; }
+    h1 { font-size: 26px; }
+    #card { padding: 14px; }
+  }
+  #counter { font-size: 12px; color: var(--cyan); opacity: .75; margin-bottom: 8px; }
+
+  .btnrow { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
+  button { font: inherit; font-weight: 700; padding: 12px 22px; border-radius: 999px;
+      border: none; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+  button:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+  #btn-yes { background: var(--green); color: #08250f; }
+  #btn-no { background: var(--red); color: #33060d; }
+  #btn-maybe { background: var(--gold); color: #33240a; }
+  #btn-start { background: var(--purple); color: #fff; font-size: 18px; padding: 14px 34px; }
+  .ghost { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); }
+
+  #rb-input { display: none; margin-top: 12px; width: 100%; }
+  #rb-input input { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--purple);
+      background: rgba(0,0,0,.35); color: var(--ink); font: inherit; }
+  #log { margin-top: 12px; max-height: 180px; overflow-y: auto; font-size: 14px; line-height: 1.7; }
+  #log .you { color: var(--cyan); } #log .genie { color: var(--purple); }
+
+  #sharecard { display: none; margin-top: 16px; white-space: pre; font-family: monospace;
+      background: #0a0514; border: 1px solid var(--gold); border-radius: 12px; padding: 16px;
+      color: var(--gold); font-size: 15px; }
+  footer { margin-top: 26px; font-size: 12px; opacity: .55; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>MIND MELD</h1>
+  <div class="tagline">it knows what you're thinking. probably.</div>
+  <div id="streak"></div>
+
+  <div id="genie">
+    <div class="head"><div class="eye l"></div><div class="eye r"></div><div class="mouth"></div></div>
+    <div class="tail"></div><div class="orb"></div>
+  </div>
+
+  <div id="card">
+    <div id="counter"></div>
+    <div id="say"><span class="genie-line">The mists are gathering...</span></div>
+    <div id="qlabel">— THE GENIE ASKS —</div>
+    <div id="question"></div>
+    <div id="player-q"></div>
+    <div class="btnrow" id="start-row"><button id="btn-start">READ MY MIND</button></div>
+    <div class="btnrow" id="answer-row" style="display:none">
+      <button id="btn-yes">YES</button><button id="btn-no">NO</button><button id="btn-maybe">MAYBE</button>
+    </div>
+    <div class="btnrow" id="confirm-row" style="display:none">
+      <button id="btn-correct">✦ YOU GOT ME</button><button id="btn-wrong" class="ghost">WRONG, GENIE</button>
+    </div>
+    <div id="rb-input">
+      <input id="rb-text" placeholder="ask a yes/no question... or type your guess" autocomplete="off">
+    </div>
+    <div id="log"></div>
+    <pre id="sharecard"></pre>
+    <div class="btnrow" id="again-row" style="display:none">
+      <button id="btn-copy" class="ghost">📋 COPY RESULT</button>
+      <button id="btn-again">PLAY FREE ROUND</button>
+    </div>
+  </div>
+
+  <footer>runs entirely on this machine · the brain was trained at home · no cloud, no tracking · <b>build 1.1</b></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const say = t => $("say").innerHTML = '<span class="genie-line">' + t + '</span>';
+const genie = mood => { $("genie").className = mood; };
+const log = (who, t) => { $("log").innerHTML += '<div class="' + who + '"><b>' + who + ':</b> ' + t + '</div>'; $("log").scrollTop = 1e9; };
+let phase = "idle";
+
+async function api(body) {
+  const r = await fetch("/api", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  return r.json();
+}
+
+function updateCounter(st) {
+  if (st.phase === "round_a") $("counter").textContent = "ROUND 1 · question " + (st.questions_asked + 1) + " of " + st.max_questions;
+  else if (st.phase === "round_b") $("counter").textContent = "ROUND 2 · " + (st.max_questions - st.round_b_asked) + " questions left";
+  else $("counter").textContent = "";
+  $("streak").textContent = st.streak > 0 ? "🔥 daily streak: " + st.streak : "";
+}
+
+function show(row) {
+  for (const r of ["start-row", "answer-row", "confirm-row"]) $(r).style.display = "none";
+  $("rb-input").style.display = "none";
+  if (row) $(row).style.display = row === "rb-input" ? "block" : "flex";
+}
+
+function revealQuestion(t) {
+  $("qlabel").style.display = "block";
+  $("question").style.display = "block";
+  $("question").textContent = t;
+  $("question").scrollIntoView({behavior: "smooth", block: "center"});
+}
+
+async function handle(res) {
+  updateCounter(res.state);
+  if (res.say) say(res.say);
+  if (res.state.phase === "round_a" && res.question && res.event !== "round_b_start") {
+    genie(""); revealQuestion(res.question); show("answer-row");
+  } else if (res.event === "guess") {
+    genie("");
+    revealQuestion("✦ " + res.guess.toUpperCase() + " ✦");
+    say("I see it forming in the mist... it's...");
+    show("confirm-row");
+  } else if (res.event === "round_b_start") {
+    genie(""); $("question").style.display = "none"; $("qlabel").style.display = "none"; $("player-q").style.display = "none";
+    say((res.say || "") + " Now — YOU read MY mind. Ask, or guess.");
+    show("rb-input"); $("rb-text").focus(); $("rb-text").scrollIntoView({behavior: "smooth", block: "center"});
+  } else if (res.event === "answer") {
+    log("you", lastAsk); log("genie", res.reply); genie(res.kind === "unknown" ? "shook" : "");
+    $("player-q").style.display = "block"; $("player-q").textContent = "you asked: " + lastAsk;
+    say(res.reply);
+  } else if (res.event === "wrong_guess") {
+    log("you", lastAsk); log("genie", res.reply); genie("happy");
+    $("player-q").style.display = "block"; $("player-q").textContent = "you guessed: " + lastAsk;
+    say(res.reply);
+  } else if (res.event === "solved") {
+    log("you", lastAsk); log("genie", res.reply); genie("shook");
+    $("player-q").style.display = "block"; $("player-q").textContent = "you guessed: " + lastAsk;
+    finish(res.state);
+  }
+  if (res.state.phase === "done" && res.event !== "solved") finish(res.state);
+}
+
+function finish(st) {
+  show(null); $("question").style.display = "none"; $("qlabel").style.display = "none";
+  $("sharecard").style.display = "block"; $("sharecard").textContent = st.share_card;
+  $("again-row").style.display = "flex";
+  say(st.you_won ? "You read ME? Nobody reads ME! ...well played." : "My secret stays mine. The mists win again.");
+}
+
+$("btn-start").onclick = async () => { genie(""); say("Think of an animal, object, person, or character..."); handle(await api({action: "new", mode: "daily"})); };
+$("btn-yes").onclick = () => api({action: "answer", answer: "yes"}).then(handle);
+$("btn-no").onclick = () => api({action: "answer", answer: "no"}).then(handle);
+$("btn-maybe").onclick = () => api({action: "answer", answer: "maybe"}).then(handle);
+$("btn-correct").onclick = () => api({action: "confirm", correct: true}).then(handle);
+$("btn-wrong").onclick = () => { genie("shook"); api({action: "confirm", correct: false}).then(handle); };
+$("btn-again").onclick = () => location.reload();
+$("btn-copy").onclick = () => { navigator.clipboard.writeText($("sharecard").textContent); $("btn-copy").textContent = "✓ COPIED"; };
+
+let lastAsk = "";
+if (location.search.includes("autostart")) window.addEventListener("load", async () => {
+  $("btn-start").click();
+  const m = location.search.match(/seq=([^&]+)/);
+  if (m) for (const rawItem of m[1].split(",")) {
+    const a = decodeURIComponent(rawItem);
+    await new Promise(r => setTimeout(r, 500));
+    if (a.startsWith("ask:")) {
+      $("rb-text").value = a.slice(4);
+      $("rb-text").dispatchEvent(new KeyboardEvent("keydown", {key: "Enter"}));
+    } else {
+      ({yes: $("btn-yes"), no: $("btn-no"), maybe: $("btn-maybe"),
+        correct: $("btn-correct"), wrong: $("btn-wrong")}[a] || {}).click?.();
+    }
+  }
+});
+$("rb-text").addEventListener("keydown", async e => {
+  if (e.key !== "Enter") return;
+  const t = e.target.value.trim(); e.target.value = "";
+  if (!t) return;
+  lastAsk = t;
+  const looksGuess = !t.endsWith("?") && t.split(/\s+/).length <= 4 && !/\b(is|are|does|do|can|could|would|did)\b/i.test(t);
+  handle(await api(looksGuess ? {action: "guess", text: t} : {action: "ask", text: t}));
+});
+</script>
+</body>
+</html>
