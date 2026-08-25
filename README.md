@@ -91,7 +91,7 @@ can never break because the brain had a weird day. The model's voice is
 ## The brain
 
 - Byte-level BPE tokenizer, from scratch, 1,500 tokens
-- 8-layer, 8-head, 512-wide GPT (26.04M params), pure PyTorch, CPU-only
+- 8-layer, 8-head, 512-wide GPT (26.8M params), pure PyTorch, CPU-only
 - Trained **14,432 steps across two 2-hour runs** (warm restart):
   loss 6.4 → **0.115**
 - Ships as `ckpt/brain.fp16.pt` (53.6MB, fp16 — verified byte-identical

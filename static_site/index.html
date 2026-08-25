@@ -488,7 +488,7 @@ $("rb-text").addEventListener("keydown", e => {
 });
 
 loadProfile();
-$("brain-panel").textContent = "🧠 the brain: 26M params · trained 14,432 steps at home · loss 0.115 · voice pre-baked by the model at build time (" +
+$("brain-panel").textContent = "🧠 the brain: 26.8M params · trained 14,432 steps at home · loss 0.115 · voice pre-baked by the model at build time (" +
   Object.values(MM_DATA.voice_model || {}).reduce((a, b) => a + b.length, 0) + " lines)";
 refreshBoss();
 
