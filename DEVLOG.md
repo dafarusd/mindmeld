@@ -212,8 +212,21 @@ Built it:
     truncates the 256-bit daily hash at 53 bits — fixed with BigInt, now
     byte-exact with Python.
 - **Voice pre-baked**: `scripts/build_voice.py` drives the trained model
-  through the runtime quality gate at build time — 128 unique lines
-  shipped in `data.js`. Honest labeling: "voice pre-baked by the model."
+  through the runtime quality gate at build time. **Corrected 2026-08-25:
+  that first bake shipped 128 entries but only 97 were unique, and ~22 were
+  unusable — garbled generations ("Wribrate s, and there it is."), prompt
+  leakage ("GENIE (ai loses): ..."), fact leaks ("It is a human. Notably,
+  it is not alive today."), and misspellings the filter never checked for.
+  The runtime filter tests length, charset, sentence-ending and fact-leaks;
+  garbled text passes all four. Hardened the bake filter (unknown-word check
+  against the 1,201-word trained vocabulary, prompt/fact-leak regex, stutter
+  and near-duplicate rejection) and re-baked: 41 clean lines from 519
+  candidates, 8% acceptance. A context pass then removed lines the model had
+  filed under the wrong kind — each survives in its home context — leaving
+  **21 model lines, all clean and context-correct**. The answer yes/no/maybe
+  kinds get zero: the model reproduces curated lines it memorised rather than
+  generating answers, so those three fall back to curated, which is what the
+  fallback is for. The honest figure is 21, not 128.** Honest labeling: "voice pre-baked by the model."
   Found during baking: the model still recalled the stale "keeper of the
   141" intro (trained pre-rename) — filtered; also the model produced
   polarity-correct answers for banter kinds it was never trained on

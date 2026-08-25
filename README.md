@@ -48,7 +48,9 @@ itch.io) and anyone on Earth plays from a link.
   `tests/test_static_engine.js` (node)
 - The genie's voice is **pre-baked at build time** by the trained model:
   `scripts/build_voice.py` regenerates `voice_model` in `data.js` through
-  the same quality gate used at runtime (128 lines shipped)
+  a strict build-time filter (21 lines shipped; the model's real
+  context-correct repertoire). Contexts the model can't voice — the
+  yes/no/maybe answers — use the curated lines, as designed
 - Learning becomes personal: taught entities live in the player's browser
   (localStorage), never touching anyone else's game
 - The live Brain's Hunch is the one desktop-only feature (it needs the
