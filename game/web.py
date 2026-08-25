@@ -49,7 +49,21 @@ class Session:
         self.gauntlet_won = False
 
 
-SESSION = Session()
+SESSIONS: dict[str, "Session"] = {}
+MAX_SESSIONS = 50
+
+
+def get_session(sid: str | None) -> tuple["Session", str | None]:
+    """Per-browser game state. Returns (session, new_sid_if_created)."""
+    if sid and sid in SESSIONS:
+        return SESSIONS[sid], None
+    import secrets as _secrets
+
+    new_id = _secrets.token_hex(8)
+    SESSIONS[new_id] = Session()
+    while len(SESSIONS) > MAX_SESSIONS:
+        SESSIONS.pop(next(iter(SESSIONS)))
+    return SESSIONS[new_id], new_id
 
 
 def brain_stats() -> dict | None:
@@ -78,13 +92,12 @@ def brain_stats() -> dict | None:
         return None
 
 
-def _state(profile: Profile) -> dict:
-    s = SESSION
+def _state(profile: Profile, s: "Session") -> dict:
     return {
         "phase": s.phase,
         "mode": s.mode,
         "questions_asked": len(s.mr.asked) if s.mr else 0,
-        "max_questions": s.mr.max_questions if s.mr else MAX_QUESTIONS,
+        "max_questions": MAX_QUESTIONS if s.phase == "round_b" else (s.mr.max_questions if s.mr else MAX_QUESTIONS),
         "guesses_made": len(s.mr.guesses_made) if s.mr else 0,
         "round_b_asked": s.keeper.questions_asked if s.keeper else 0,
         "ai_q": s.ai_q,
@@ -104,8 +117,7 @@ def _state(profile: Profile) -> dict:
     }
 
 
-def handle(body: dict, profile: Profile) -> dict:
-    s = SESSION
+def handle(body: dict, profile: Profile, s: "Session") -> dict:
     action = body.get("action")
 
     if action == "new":
@@ -131,7 +143,7 @@ def handle(body: dict, profile: Profile) -> dict:
         if profile.stumps:
             say = pick(s.rng, GRUDGE_OPENERS).format(name=profile.recent_stumps(1)[0]) + " " + say
         return {"say": say, "event": "round_a_start", "question": s.rng.choice(QUESTIONS[attr]),
-                "candidates": s.mr.top_candidates(3), "boss": mode == "boss", "state": _state(profile)}
+                "candidates": s.mr.top_candidates(3), "boss": mode == "boss", "state": _state(profile, s)}
 
     if action == "answer" and s.phase == "round_a" and s.mr and s.pending_guess is None:
         value = {"yes": 1.0, "no": 0.0, "maybe": 0.5}[body["answer"]]
@@ -143,14 +155,14 @@ def handle(body: dict, profile: Profile) -> dict:
                 transcript = [f"Q: {QUESTIONS[a][0]} A: {ANSWER_WORD[v]}" for a, v in s.mr.answers]
                 hunch = voice.hunch(transcript)
             return {"event": "guess", "guess": s.pending_guess, "hunch": hunch,
-                    "candidates": s.mr.top_candidates(3), "boss": s.mode == "boss", "state": _state(profile)}
+                    "candidates": s.mr.top_candidates(3), "boss": s.mode == "boss", "state": _state(profile, s)}
         attr = s.mr.next_question()
         if attr is None:
             s.pending_guess = s.mr.best_candidate()
             return {"event": "guess", "guess": s.pending_guess, "hunch": None,
-                    "candidates": s.mr.top_candidates(3), "boss": s.mode == "boss", "state": _state(profile)}
+                    "candidates": s.mr.top_candidates(3), "boss": s.mode == "boss", "state": _state(profile, s)}
         s.pending_attr = attr
-        return {"event": "question", "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile)}
+        return {"event": "question", "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile, s)}
 
     if action == "confirm" and s.phase == "round_a" and s.pending_guess and getattr(s, "gauntlet_active", False):
         correct = bool(body.get("correct"))
@@ -167,9 +179,9 @@ def handle(body: dict, profile: Profile) -> dict:
                 s.pending_guess = s.mr.guess()
                 s.gauntlet_active = True
                 return {"event": "guess", "guess": s.pending_guess, "hunch": None,
-                        "candidates": s.mr.top_candidates(3), "boss": True, "state": _state(profile)}
+                        "candidates": s.mr.top_candidates(3), "boss": True, "state": _state(profile, s)}
         _begin_round_b(s)
-        return {"event": "round_b_start", "say": say, "state": _state(profile)}
+        return {"event": "round_b_start", "say": say, "state": _state(profile, s)}
 
     if action == "confirm" and s.phase == "round_a" and s.pending_guess:
         correct = bool(body.get("correct"))
@@ -179,22 +191,22 @@ def handle(body: dict, profile: Profile) -> dict:
             say = voice.banter("correct guess", s.rng) + " " + voice.banter("ai wins", s.rng)
             if s.mode == "daily" and not s.gauntlet_won:
                 return {"event": "gauntlet_offer", "say": say, "blurb": ENTITIES[s.pending_guess]["blurb"],
-                        "offer": pick(s.rng, GAUNTLET_OFFER), "state": _state(profile)}
+                        "offer": pick(s.rng, GAUNTLET_OFFER), "state": _state(profile, s)}
             _begin_round_b(s)
-            return {"event": "round_b_start", "say": say, "blurb": ENTITIES[s.pending_guess]["blurb"], "state": _state(profile)}
+            return {"event": "round_b_start", "say": say, "blurb": ENTITIES[s.pending_guess]["blurb"], "state": _state(profile, s)}
         say = voice.banter("wrong guess", s.rng)
         s.mr.confirm_guess(False)
         s.pending_guess = None
         if len(s.mr.guesses_made) >= 3:
             s.ai_q = len(s.mr.asked)
             s.ai_won = False
-            return {"event": "learn_prompt", "say": say + " You stumped me. WHAT were you thinking of? (teach me — or press enter to keep it secret)", "state": _state(profile)}
+            return {"event": "learn_prompt", "say": say + " You stumped me. WHAT were you thinking of? (teach me — or press enter to keep it secret)", "state": _state(profile, s)}
         attr = s.mr.next_question()
         if attr is None:
             s.pending_guess = s.mr.guess()
-            return {"event": "guess", "guess": s.pending_guess, "hunch": None, "say": say, "state": _state(profile)}
+            return {"event": "guess", "guess": s.pending_guess, "hunch": None, "say": say, "state": _state(profile, s)}
         s.pending_attr = attr
-        return {"event": "question", "say": say, "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile)}
+        return {"event": "question", "say": say, "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile, s)}
 
     if action == "gauntlet" and s.phase == "round_a" and s.ai_won:
         if body.get("accept"):
@@ -206,9 +218,9 @@ def handle(body: dict, profile: Profile) -> dict:
             s.pending_attr = attr
             return {"event": "round_a_start", "say": "Think of something NEW. Five questions. No mercy.",
                     "question": s.rng.choice(QUESTIONS[attr]), "candidates": s.mr.top_candidates(3),
-                    "boss": False, "gauntlet": True, "state": _state(profile)}
+                    "boss": False, "gauntlet": True, "state": _state(profile, s)}
         _begin_round_b(s)
-        return {"event": "round_b_start", "say": "Wise. The mist respects caution.", "state": _state(profile)}
+        return {"event": "round_b_start", "say": "Wise. The mist respects caution.", "state": _state(profile, s)}
 
     if action == "learn" and s.phase == "round_a" and s.mr is not None:
         note = "Another secret kept... for now."
@@ -225,7 +237,7 @@ def handle(body: dict, profile: Profile) -> dict:
             except LearnError as exc:
                 note = str(exc)
         _begin_round_b(s)
-        return {"event": "round_b_start", "say": note, "state": _state(profile)}
+        return {"event": "round_b_start", "say": note, "state": _state(profile, s)}
 
     if action == "ask" and s.phase == "round_b" and s.keeper:
         kind, reply = s.keeper.answer_question(body["text"])
@@ -233,13 +245,13 @@ def handle(body: dict, profile: Profile) -> dict:
         done = s.keeper.questions_asked >= MAX_QUESTIONS
         if done:
             _finish(s, profile, you_won=False, you_q=MAX_QUESTIONS)
-        return {"event": "answer", "reply": reply, "flavor": flavor, "kind": kind, "state": _state(profile)}
+        return {"event": "answer", "reply": reply, "flavor": flavor, "kind": kind, "state": _state(profile, s)}
 
     if action == "guess" and s.phase == "round_b" and s.keeper:
         correct, heat = s.keeper.try_guess(body["text"])
         if correct:
             _finish(s, profile, you_won=True, you_q=s.keeper.questions_asked + 1)
-            return {"event": "solved", "reply": f"Yes! It was {s.secret}.", "state": _state(profile)}
+            return {"event": "solved", "reply": f"Yes! It was {s.secret}.", "state": _state(profile, s)}
         s.keeper.questions_asked += 1
         done = s.keeper.questions_asked >= MAX_QUESTIONS
         if done:
@@ -249,9 +261,9 @@ def handle(body: dict, profile: Profile) -> dict:
             reply += f" — {heat}"
         else:
             reply += " (never heard of it, in fact)"
-        return {"event": "wrong_guess", "reply": reply, "heat": heat, "state": _state(profile)}
+        return {"event": "wrong_guess", "reply": reply, "heat": heat, "state": _state(profile, s)}
 
-    return {"event": "state", "state": _state(profile)}
+    return {"event": "state", "state": _state(profile, s)}
 
 
 def _begin_round_b(s: Session) -> None:
@@ -289,13 +301,22 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-    def _send_json(self, obj: dict, code: int = 200):
+    def _send_json(self, obj: dict, code: int = 200, cookie: str | None = None):
         payload = json.dumps(obj).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
+        if cookie:
+            self.send_header("Set-Cookie", f"mm_session={cookie}; Path=/; SameSite=Lax")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _session(self) -> tuple["Session", str | None]:
+        from http.cookies import SimpleCookie
+
+        raw = self.headers.get("Cookie", "")
+        sid = SimpleCookie(raw).get("mm_session")
+        return get_session(sid.value if sid else None)
 
     def do_GET(self):
         from urllib.parse import urlparse
@@ -310,7 +331,9 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(html)
         elif path == "/api/state":
-            self._send_json({"state": _state(Profile())})
+            s, new_id = self._session()
+            resp = {"state": _state(Profile(), s)}
+            self._send_json(resp, cookie=new_id)
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -324,7 +347,8 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._send_json({"error": "bad json"}, 400)
             return
-        self._send_json(handle(body, Profile()))
+        s, new_id = self._session()
+        self._send_json(handle(body, Profile(), s), cookie=new_id)
 
 
 def main() -> None:

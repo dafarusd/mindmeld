@@ -180,7 +180,7 @@ async function api(body) {
 
 function updateCounter(st) {
   if (st.phase === "round_a") $("counter").textContent = "ROUND 1 · question " + (st.questions_asked + 1) + " of " + st.max_questions;
-  else if (st.phase === "round_b") $("counter").textContent = "ROUND 2 · " + (st.max_questions - st.round_b_asked) + " questions left";
+  else if (st.phase === "round_b") $("counter").textContent = "ROUND 2 · question " + (st.round_b_asked + 1) + " · " + (st.max_questions - st.round_b_asked) + " left";
   else $("counter").textContent = "";
   $("streak").textContent = st.streak > 0 ? "🔥 daily streak: " + st.streak : "";
   if (st.phase === "round_a" && st.confidence !== null && st.confidence !== undefined) {

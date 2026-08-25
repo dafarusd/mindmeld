@@ -176,3 +176,20 @@ wins. The save signature proved it (best_streak 0, no daily day).
 - Bug found by screenshot: hunch line lingered into the next question —
   now hidden on each new question.
 - Tests: 65 total, all green.
+
+## 2026-08-25 — v1.4.2: sessions and the counter
+
+User report mid-game: "round 2 questions are going up instead of down."
+Server-side countdown was correct in isolation; the real flaws were
+architectural and presentational:
+
+- **One global game session** meant a second browser tab hijacked the
+  same game — counters jumping, state fighting. Each browser now gets
+  its own session (`mm_session` cookie, capped at 50). Verified with two
+  interleaved simulated clients: tab A's game is undisturbed by tab B.
+  Side benefit: LAN play now gives each visitor their own game.
+- Counter is now unambiguous in round 2: "question 5 · 16 left" — both
+  numbers visible, direction obvious.
+- Round-B question cap no longer inherits boss/gauntlet's smaller cap —
+  round 2 is always 20 questions.
+- Tests: 65 total, all green.
