@@ -65,3 +65,51 @@ something. Newest at the bottom.
 - This journal replaces runtime event logging (user's call — the diary
   is for us, not the machine).
 - git repo initialized; first commit.
+
+## 2026-08-25 — v1.3: the duel becomes real
+
+User verdict on Round 2: "misleading" — the genie promised it was hiding
+a secret cleverly; really it was a lookup table. Fixed by making it play:
+
+- **Hot/cold feedback**: wrong guesses now report real engine-measured
+  similarity ("🔥 BURNING — almost there" … "🥶 ice cold"). Wrong answers
+  carry information now.
+- **The bluff**: the genie secretly picks one attribute per game and lies
+  about it if asked; discloses at the end ("I lied once — when you asked
+  about…"). Announced up front: "I may lie exactly once." `--no-bluff`.
+- **Answer flavor**: every yes/no/maybe wrapped in voice taunts. Gotcha
+  found in testing: the model drifted off-polarity (answering "can it
+  fly?" with a corrupted line from the lose category). Added a polarity
+  gate — answer lines must start with the matching polarity word or fall
+  back to curated. Model learns these flavors on the next retrain
+  (corpus generator already updated).
+- **Live confidence meter** (Round 1): the engine's top-candidate share
+  as an animated bar — "the mist is gathering… 62% sure". Pure drama,
+  zero new tech.
+- **The Brain's Hunch**: once per Round 1 the trained GPT makes its own
+  guess from the transcript (the corpus's bare-transcript format pays
+  off). If it matches the engine: "the brain and the mist agree." If it's
+  a near-miss or gibberish: shown in quotes as comedy. Hard-gated.
+- **Stump-and-learn (the keeper feature)**: beat the AI in Round 1 and it
+  asks what you were thinking — your answers become the new entity's
+  attribute vector in `data/learned.json`, merged into the KB on load.
+  Beat it once, never the same way twice. Guardrails: name validation,
+  fuzzy dedupe, 200-cap FIFO. Verified end-to-end: learn → reload →
+  engine guesses it.
+  - Bug found: fuzzy entity matching substring-matched "s**tea**m deck"
+    to "tea". Now requires the candidate name ≥4 chars too.
+  - Bug found: exhausted-questions path only made 1 of 3 guesses, which
+    also misaligned the learn prompt's input. Both guess paths now share
+    the 3-guess contract.
+- **Progression**: ranks (Apprentice → Mind Reader → Thought Thief →
+  Mistwalker → Geniebreaker), six achievements (First Blood, Surgical,
+  Stumper, On Fire, Teacher, Storm Survivor), persisted in profile.
+- **Hard mode**: `--hard` / HARD MODE button — genie caps at 10 questions
+  with an adjusted guess threshold. Measured: 98.8% → 92.0% accuracy.
+  A real difficulty step that stays fair. Test-gated at ≥85%.
+- **Themed daily pools**: Tuesday = animals, Friday = fiction, Saturday =
+  food. Same date-formula determinism — every machine, same secret, same
+  theme. Share card shows theme + rank.
+- Content batch: 325 → **386 entities**; self-play 94.8% @ median 10q
+  (gate ≥90% holds).
+- Tests: 50 total, all green.

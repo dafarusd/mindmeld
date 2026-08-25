@@ -64,6 +64,12 @@
     #card { padding: 14px; }
   }
   #counter { font-size: 12px; color: var(--cyan); opacity: .75; margin-bottom: 8px; }
+  #confidwrap { height: 8px; background: rgba(255,255,255,.08); border-radius: 999px;
+      overflow: hidden; margin: 4px 0 8px; display: none; }
+  #confid { height: 100%; width: 0%; border-radius: 999px; transition: width .6s ease;
+      background: linear-gradient(90deg, var(--purple), var(--gold)); }
+  #confidlabel { font-size: 11px; color: var(--purple); opacity: .8; margin-bottom: 6px; display: none; }
+  #hunch { font-size: 14px; color: var(--cyan); margin: 6px 0; display: none; }
 
   .btnrow { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
   button { font: inherit; font-weight: 700; padding: 12px 22px; border-radius: 999px;
@@ -99,11 +105,17 @@
 
   <div id="card">
     <div id="counter"></div>
+    <div id="confidlabel">the mist is gathering… <span id="confidpct"></span></div>
+    <div id="confidwrap"><div id="confid"></div></div>
     <div id="say"><span class="genie-line">The mists are gathering...</span></div>
     <div id="qlabel">— THE GENIE ASKS —</div>
     <div id="question"></div>
+    <div id="hunch"></div>
     <div id="player-q"></div>
-    <div class="btnrow" id="start-row"><button id="btn-start">READ MY MIND</button></div>
+    <div class="btnrow" id="start-row">
+      <button id="btn-start">READ MY MIND</button>
+      <button id="btn-hard" class="ghost">HARD MODE ⚡</button>
+    </div>
     <div class="btnrow" id="answer-row" style="display:none">
       <button id="btn-yes">YES</button><button id="btn-no">NO</button><button id="btn-maybe">MAYBE</button>
     </div>
@@ -121,7 +133,7 @@
     </div>
   </div>
 
-  <footer>runs entirely on this machine · the brain was trained at home · no cloud, no tracking · <b>build 1.1</b></footer>
+  <footer>runs entirely on this machine · the brain was trained at home · no cloud, no tracking · <b>build 1.3</b></footer>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -140,6 +152,13 @@ function updateCounter(st) {
   else if (st.phase === "round_b") $("counter").textContent = "ROUND 2 · " + (st.max_questions - st.round_b_asked) + " questions left";
   else $("counter").textContent = "";
   $("streak").textContent = st.streak > 0 ? "🔥 daily streak: " + st.streak : "";
+  if (st.phase === "round_a" && st.confidence !== null && st.confidence !== undefined) {
+    $("confidwrap").style.display = "block"; $("confidlabel").style.display = "block";
+    $("confid").style.width = Math.max(2, st.confidence) + "%";
+    $("confidpct").textContent = st.confidence + "% sure";
+  } else {
+    $("confidwrap").style.display = "none"; $("confidlabel").style.display = "none";
+  }
 }
 
 function show(row) {
@@ -163,16 +182,28 @@ async function handle(res) {
   } else if (res.event === "guess") {
     genie("");
     revealQuestion("✦ " + res.guess.toUpperCase() + " ✦");
+    if (res.hunch) {
+      $("hunch").style.display = "block";
+      $("hunch").textContent = res.hunch.toLowerCase() === res.guess.toLowerCase()
+        ? "🧠 the brain and the mist agree"
+        : "🧠 the brain's hunch: “" + res.hunch + "”";
+    }
     say("I see it forming in the mist... it's...");
     show("confirm-row");
   } else if (res.event === "round_b_start") {
-    genie(""); $("question").style.display = "none"; $("qlabel").style.display = "none"; $("player-q").style.display = "none";
-    say((res.say || "") + " Now — YOU read MY mind. Ask, or guess.");
+    genie(""); $("question").style.display = "none"; $("qlabel").style.display = "none"; $("hunch").style.display = "none"; $("player-q").style.display = "none";
+    learnMode = false; $("rb-text").placeholder = "ask a yes/no question... or type your guess";
+    say((res.say || "") + " Now — YOU read MY mind. Ask, or guess. One rule: I may lie exactly once.");
     show("rb-input"); $("rb-text").focus(); $("rb-text").scrollIntoView({behavior: "smooth", block: "center"});
+  } else if (res.event === "learn_prompt") {
+    genie("shook"); $("question").style.display = "none"; $("qlabel").style.display = "none"; $("hunch").style.display = "none";
+    say(res.say);
+    learnMode = true; $("rb-text").placeholder = "it was... (enter to teach, empty to skip)";
+    show("rb-input"); $("rb-text").focus();
   } else if (res.event === "answer") {
     log("you", lastAsk); log("genie", res.reply); genie(res.kind === "unknown" ? "shook" : "");
     $("player-q").style.display = "block"; $("player-q").textContent = "you asked: " + lastAsk;
-    say(res.reply);
+    say(res.reply + (res.flavor ? ' <span style="opacity:.65;font-size:15px">' + res.flavor + '</span>' : ""));
   } else if (res.event === "wrong_guess") {
     log("you", lastAsk); log("genie", res.reply); genie("happy");
     $("player-q").style.display = "block"; $("player-q").textContent = "you guessed: " + lastAsk;
@@ -186,13 +217,16 @@ async function handle(res) {
 }
 
 function finish(st) {
-  show(null); $("question").style.display = "none"; $("qlabel").style.display = "none";
+  show(null); $("question").style.display = "none"; $("qlabel").style.display = "none"; $("hunch").style.display = "none";
   $("sharecard").style.display = "block"; $("sharecard").textContent = st.share_card;
   $("again-row").style.display = "flex";
+  if (st.bluff_disclosure) log("genie", st.bluff_disclosure);
+  for (const a of (st.new_achievements || [])) log("genie", "🏆 achievement unlocked: " + a);
   say(st.you_won ? "You read ME? Nobody reads ME! ...well played." : "My secret stays mine. The mists win again.");
 }
 
 $("btn-start").onclick = async () => { genie(""); say("Think of an animal, object, person, or character..."); handle(await api({action: "new", mode: "daily"})); };
+$("btn-hard").onclick = async () => { genie(""); say("HARD MODE. Ten questions. No mercy."); handle(await api({action: "new", mode: "hard"})); };
 $("btn-yes").onclick = () => api({action: "answer", answer: "yes"}).then(handle);
 $("btn-no").onclick = () => api({action: "answer", answer: "no"}).then(handle);
 $("btn-maybe").onclick = () => api({action: "answer", answer: "maybe"}).then(handle);
@@ -202,6 +236,7 @@ $("btn-again").onclick = () => location.reload();
 $("btn-copy").onclick = () => { navigator.clipboard.writeText($("sharecard").textContent); $("btn-copy").textContent = "✓ COPIED"; };
 
 let lastAsk = "";
+let learnMode = false;
 if (location.search.includes("autostart")) window.addEventListener("load", async () => {
   $("btn-start").click();
   const m = location.search.match(/seq=([^&]+)/);
@@ -220,6 +255,7 @@ if (location.search.includes("autostart")) window.addEventListener("load", async
 $("rb-text").addEventListener("keydown", async e => {
   if (e.key !== "Enter") return;
   const t = e.target.value.trim(); e.target.value = "";
+  if (learnMode) { learnMode = false; handle(await api({action: "learn", text: t})); return; }
   if (!t) return;
   lastAsk = t;
   const looksGuess = !t.endsWith("?") && t.split(/\s+/).length <= 4 && !/\b(is|are|does|do|can|could|would|did)\b/i.test(t);

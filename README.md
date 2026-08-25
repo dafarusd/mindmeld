@@ -38,18 +38,26 @@ genie speaks its built-in script and a one-line notice tells you why.
 ## The game
 
 **Round 1:** think of an animal, object, food, famous person, or
-character. The genie asks yes/no/maybe questions and reads your mind —
-**98.8% accuracy, median 9 questions**, over a 325-entity knowledge base.
+character. Watch the genie's confidence bar climb as it narrows down —
+**94.8% accuracy over 386 entities**, median 10 questions. Once per round,
+the **trained brain makes its own hunch** alongside the engine's guess.
 
-**Round 2:** the genie thinks of something. You interrogate it in free
-text; it answers truthfully from its knowledge. Fewer questions than the
+**Round 2:** the genie holds a secret. Interrogate it in free text — it
+answers truthfully *except for one disclosed bluff per game* ("I may lie
+exactly once. Catch it if you can."). Wrong guesses come back with
+hot/cold readings computed from real similarity. Fewer questions than the
 genie needed = you win the meld.
+
+**Stump it, and it learns.** Beat the genie and it asks what you were
+thinking of — your answers become permanent new knowledge
+(`data/learned.json`). Ranks, achievements, and a 10-question **hard
+mode** (`--hard` / HARD MODE button) keep score over time.
 
 ## Architecture — each layer does what it's actually good at
 
 | Layer | What it does | Numbers |
 |---|---|---|
-| **Knowledge engine** (`game/`) | 325 entities × 120 curated attributes, entropy-based question selection, ground-truth answers | 98.8% self-play, median 9 questions |
+| **Knowledge engine** (`game/`) | 386 entities × 120 curated attributes, entropy-based question selection, ground-truth answers | 94.8% self-play (386 entities), median 10 questions |
 | **Trained LLM** (`newton/`) | the genie's *voice*: banter, taunts, celebrations | 26M-param GPT, loss 0.115 |
 
 The engine is the spine; the model is the personality. Model output

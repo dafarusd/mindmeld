@@ -10,11 +10,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import voice
-from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_secret, share_card
+from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_info, share_card
 from .kb import ENTITIES
-from .personality import INTROS, INTROS_DAILY, pick
+from .personality import BLUFF_RULE, INTROS, INTROS_DAILY, pick
 from .profile import Profile
 from .questions import QUESTIONS
+
+ANSWER_WORD = {1.0: "yes", 0.0: "no", 0.5: "maybe"}
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = Path(__file__).resolve().parent / "static"
@@ -34,10 +36,15 @@ class Session:
         self.pending_guess: str | None = None
         self.ai_q: int | None = None
         self.ai_won = False
+        self.new_achievements: list[str] = []
+        self.theme: str | None = None
         self.you_q: int | None = None
         self.you_won = False
         self.day = date.today().toordinal()
-        self.secret = daily_secret(self.day) if mode == "daily" else None
+        secret, theme = daily_info(self.day)
+        self.secret = secret if mode == "daily" else None
+        self.theme = theme if mode == "daily" else None
+        self.learned_new = False
 
 
 SESSION = Session()
@@ -56,7 +63,10 @@ def _state(profile: Profile) -> dict:
         "ai_won": s.ai_won,
         "you_q": s.you_q,
         "you_won": s.you_won,
-        "share_card": share_card(s.day % 1000, s.ai_q, s.ai_won, s.you_q, s.you_won) if s.phase == "done" else None,
+        "share_card": share_card(s.day % 1000, s.ai_q, s.ai_won, s.you_q, s.you_won, theme=s.theme, rank=profile.rank()) if s.phase == "done" else None,
+        "confidence": round(s.mr.top_share() * 100) if s.mr and s.phase == "round_a" else None,
+        "bluff_disclosure": s.keeper.bluff_disclosure() if (s.keeper and s.phase == "done") else None,
+        "new_achievements": getattr(s, "new_achievements", []) if s.phase == "done" else [],
         "profile": profile.summary(),
         "streak": profile.current_streak,
         "played_today": profile.already_played_today(),
@@ -73,7 +83,7 @@ def handle(body: dict, profile: Profile) -> dict:
             mode = "free"
         s.reset(mode)
         s.phase = "round_a"
-        s.mr = MindReader(rng=s.rng)
+        s.mr = MindReader(rng=s.rng, max_questions=10 if mode == "hard" else MAX_QUESTIONS)
         intro = pick(s.rng, INTROS_DAILY if s.mode == "daily" else INTROS)
         attr = s.mr.next_question()
         s.pending_attr = attr
@@ -85,11 +95,15 @@ def handle(body: dict, profile: Profile) -> dict:
         s.mr.answer(s.pending_attr, value)
         if s.mr.should_guess():
             s.pending_guess = s.mr.guess()
-            return {"event": "guess", "guess": s.pending_guess, "state": _state(profile)}
+            hunch = None
+            if voice.brain_available():
+                transcript = [f"Q: {QUESTIONS[a][0]} A: {ANSWER_WORD[v]}" for a, v in s.mr.answers]
+                hunch = voice.hunch(transcript)
+            return {"event": "guess", "guess": s.pending_guess, "hunch": hunch, "state": _state(profile)}
         attr = s.mr.next_question()
         if attr is None:
             s.pending_guess = s.mr.best_candidate()
-            return {"event": "guess", "guess": s.pending_guess, "state": _state(profile)}
+            return {"event": "guess", "guess": s.pending_guess, "hunch": None, "state": _state(profile)}
         s.pending_attr = attr
         return {"event": "question", "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile)}
 
@@ -104,36 +118,57 @@ def handle(body: dict, profile: Profile) -> dict:
         say = voice.banter("wrong guess", s.rng)
         s.mr.confirm_guess(False)
         s.pending_guess = None
-        if len(s.mr.guesses_made) >= 3 or s.mr.questions_left() <= 0:
+        if len(s.mr.guesses_made) >= 3:
             s.ai_q = len(s.mr.asked)
             s.ai_won = False
-            _begin_round_b(s)
-            return {"event": "round_b_start", "say": say + " " + voice.banter("ai loses", s.rng), "state": _state(profile)}
+            return {"event": "learn_prompt", "say": say + " You stumped me. WHAT were you thinking of? (teach me — or press enter to keep it secret)", "state": _state(profile)}
         attr = s.mr.next_question()
         if attr is None:
-            s.ai_q = len(s.mr.asked)
-            s.ai_won = False
-            _begin_round_b(s)
-            return {"event": "round_b_start", "say": say + " " + voice.banter("ai loses", s.rng), "state": _state(profile)}
+            s.pending_guess = s.mr.guess()
+            return {"event": "guess", "guess": s.pending_guess, "hunch": None, "say": say, "state": _state(profile)}
         s.pending_attr = attr
         return {"event": "question", "say": say, "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile)}
 
+    if action == "learn" and s.phase == "round_a" and s.mr is not None:
+        note = "Another secret kept... for now."
+        text = body.get("text", "").strip()
+        if text:
+            from . import kb
+            from .learn import LearnError, learn
+
+            try:
+                clean = learn(text, s.mr.answers)
+                kb.reload()
+                s.learned_new = True
+                note = f"'{clean}' — etched into my mind. Forever."
+            except LearnError as exc:
+                note = str(exc)
+        _begin_round_b(s)
+        return {"event": "round_b_start", "say": note, "state": _state(profile)}
+
     if action == "ask" and s.phase == "round_b" and s.keeper:
         kind, reply = s.keeper.answer_question(body["text"])
+        flavor = "" if kind == "unknown" else voice.banter(f"answer {kind}", s.rng)
         done = s.keeper.questions_asked >= MAX_QUESTIONS
         if done:
             _finish(s, profile, you_won=False, you_q=MAX_QUESTIONS)
-        return {"event": "answer", "reply": reply, "kind": kind, "state": _state(profile)}
+        return {"event": "answer", "reply": reply, "flavor": flavor, "kind": kind, "state": _state(profile)}
 
     if action == "guess" and s.phase == "round_b" and s.keeper:
-        if s.keeper.try_guess(body["text"]):
+        correct, heat = s.keeper.try_guess(body["text"])
+        if correct:
             _finish(s, profile, you_won=True, you_q=s.keeper.questions_asked + 1)
             return {"event": "solved", "reply": f"Yes! It was {s.secret}.", "state": _state(profile)}
         s.keeper.questions_asked += 1
         done = s.keeper.questions_asked >= MAX_QUESTIONS
         if done:
             _finish(s, profile, you_won=False, you_q=MAX_QUESTIONS)
-        return {"event": "wrong_guess", "reply": f"No. It is not {body['text']}.", "state": _state(profile)}
+        reply = f"No. It is not {body['text']}."
+        if heat:
+            reply += f" — {heat}"
+        else:
+            reply += " (never heard of it, in fact)"
+        return {"event": "wrong_guess", "reply": reply, "heat": heat, "state": _state(profile)}
 
     return {"event": "state", "state": _state(profile)}
 
@@ -141,7 +176,7 @@ def handle(body: dict, profile: Profile) -> dict:
 def _begin_round_b(s: Session) -> None:
     s.phase = "round_b"
     s.secret = s.secret or pick(s.rng, list(ENTITIES.keys()))
-    s.keeper = SecretKeeper(secret=s.secret, rng=s.rng)
+    s.keeper = SecretKeeper(secret=s.secret, rng=s.rng, bluff=True)
 
 
 def _finish(s: Session, profile: Profile, you_won: bool, you_q: int) -> None:
@@ -153,6 +188,14 @@ def _finish(s: Session, profile: Profile, you_won: bool, you_q: int) -> None:
         profile.record_daily(s.day, you_beat_it)
     else:
         profile.record_freeplay(you_beat_it)
+    newly = profile.register_game(s.ai_won, s.ai_q, you_won, you_q,
+                                  hard=(s.mode == "hard"), learned_new=s.learned_new)
+    if newly:
+        from .profile import ACHIEVEMENTS
+
+        s.new_achievements = [ACHIEVEMENTS[k] for k in newly]
+    else:
+        s.new_achievements = []
 
 
 class Handler(BaseHTTPRequestHandler):

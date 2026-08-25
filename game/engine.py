@@ -15,13 +15,15 @@ import math
 import random
 from dataclasses import dataclass, field
 
-from .kb import ATTR_INDEX, ATTR_MATRIX, ATTRIBUTES, ENTITIES, ENTITY_NAMES, NO, YES
+from . import kb
+from .kb import ATTR_INDEX, ATTRIBUTES, ENTITIES, ENTITY_NAMES, NO, YES
+
+ATTR_MATRIX = kb.ATTR_MATRIX
 from .questions import ANSWER_WORDS, QUESTIONS
 
 MAX_QUESTIONS = 20
 GUESS_CONFIDENCE = 0.62
 
-_N = len(ENTITY_NAMES)
 
 
 def parse_answer(text: str) -> float | None:
@@ -47,21 +49,25 @@ def _h_from_weights(ws: list[float]) -> float:
 @dataclass
 class MindReader:
     rng: random.Random = field(default_factory=random.Random)
-    weights: dict[str, float] = field(default_factory=lambda: {n: 1.0 for n in ENTITY_NAMES})
+    max_questions: int = MAX_QUESTIONS
+    weights: dict[str, float] = field(default_factory=lambda: {n: 1.0 for n in kb.ENTITY_NAMES})
     asked: list[str] = field(default_factory=list)
     answers: list[tuple[str, float]] = field(default_factory=list)
     guesses_made: list[str] = field(default_factory=list)
 
     def __post_init__(self):
-        self._w = [self.weights[n] for n in ENTITY_NAMES]
+        self._names = list(kb.ENTITY_NAMES)
+        self._matrix = kb.ATTR_MATRIX
+        self._n = len(self._names)
+        self._w = [self.weights[n] for n in self._names]
 
     def _sync_out(self) -> None:
-        for i, n in enumerate(ENTITY_NAMES):
+        for i, n in enumerate(self._names):
             self.weights[n] = self._w[i]
 
     def next_question(self) -> str | None:
         available = [a for a in range(len(ATTRIBUTES)) if ATTRIBUTES[a] not in self.asked]
-        if not available or len(self.asked) >= MAX_QUESTIONS:
+        if not available or len(self.asked) >= self.max_questions:
             return None
         w = self._w
         total = sum(w)
@@ -72,8 +78,8 @@ class MindReader:
             yes_l: list[float] = []
             no_l: list[float] = []
             maybe_l: list[float] = []
-            for i in range(_N):
-                v = ATTR_MATRIX[i][a]
+            for i in range(self._n):
+                v = self._matrix[i][a]
                 wi = w[i]
                 if v == YES:
                     yes_w += wi
@@ -98,13 +104,13 @@ class MindReader:
         self.asked.append(attr)
         self.answers.append((attr, value))
         a = ATTR_INDEX[attr]
-        for i in range(_N):
-            agree = 1.0 - abs(ATTR_MATRIX[i][a] - value)
+        for i in range(self._n):
+            agree = 1.0 - abs(self._matrix[i][a] - value)
             self._w[i] *= 0.05 + 0.95 * agree
         s = sum(self._w)
         if s > 0:
             inv = 1.0 / s
-            for i in range(_N):
+            for i in range(self._n):
                 self._w[i] *= inv
         self._sync_out()
 
@@ -120,13 +126,14 @@ class MindReader:
 
     def should_guess(self) -> bool:
         asked = len(self.asked)
-        if asked >= MAX_QUESTIONS:
+        if asked >= self.max_questions:
             return True
         ranked = self._ranked()
         if len(ranked) < 2:
             return True
         top, runner_up = ranked[0][1], ranked[1][1]
-        if asked >= 4 and runner_up > 0 and top / runner_up >= 2.0:
+        ratio_gate = 1.6 if self.max_questions <= 10 else 2.0
+        if asked >= 4 and runner_up > 0 and top / runner_up >= ratio_gate:
             return True
         if asked >= 5 and self.top_share() >= 0.30:
             return True
@@ -141,11 +148,11 @@ class MindReader:
         if correct:
             return
         wrong = self.guesses_made[-1] if self.guesses_made else self.best_candidate()
-        self._w[ENTITY_NAMES.index(wrong)] *= 0.01
+        self._w[self._names.index(wrong)] *= 0.01
         self._sync_out()
 
     def questions_left(self) -> int:
-        return MAX_QUESTIONS - len(self.asked)
+        return self.max_questions - len(self.asked)
 
 
 SYNONYMS: dict[str, str] = {
@@ -245,12 +252,52 @@ def match_attribute(question_text: str) -> str | None:
     return best
 
 
+def resolve_entity(text: str) -> str | None:
+    t = text.lower().strip().removesuffix("?").strip()
+    t = t.removeprefix("is it ").removeprefix("a ").removeprefix("an ").removeprefix("the ").strip()
+    lookup = {n.lower(): n for n in kb.ENTITY_NAMES}
+    if t in lookup:
+        return lookup[t]
+    for low, name in lookup.items():
+        if min(len(t), len(low)) >= 4 and (t in low or low in t):
+            return name
+    return None
+
+
+def similarity(a: str, b: str) -> float:
+    va, vb = ENTITIES[a]["vec"], ENTITIES[b]["vec"]
+    score = sum(1.0 - 0.9 * abs(va[attr] - vb[attr]) for attr in ATTRIBUTES)
+    return score / len(ATTRIBUTES)
+
+
+def heat_label(score: float) -> str:
+    if score >= 0.90:
+        return "🔥 BURNING — almost there"
+    if score >= 0.82:
+        return "🔥 warm — close"
+    if score >= 0.74:
+        return "🌤 coolish — some overlap"
+    if score >= 0.66:
+        return "❄ cold"
+    return "🥶 ice cold — wrong kingdom entirely"
+
+
 @dataclass
 class SecretKeeper:
     secret: str
     rng: random.Random = field(default_factory=random.Random)
+    bluff: bool = True
     questions_asked: int = 0
     solved: bool = False
+    bluff_attr: str | None = None
+    bluff_used: bool = False
+
+    def __post_init__(self):
+        if self.bluff:
+            vec = ENTITIES[self.secret]["vec"]
+            candidates = [a for a in ATTRIBUTES if vec[a] != 0.5]
+            if candidates:
+                self.bluff_attr = self.rng.choice(candidates)
 
     def answer_question(self, text: str) -> tuple[str, str]:
         self.questions_asked += 1
@@ -258,32 +305,66 @@ class SecretKeeper:
         if attr is None:
             return "unknown", "The spirits cannot parse that question. Ask about a trait — alive? animal? metal? famous?"
         v = ENTITIES[self.secret]["vec"][attr]
+        if attr == self.bluff_attr:
+            self.bluff_used = True
+            v = {YES: NO, NO: YES}.get(v, v)
         if v == YES:
             return "yes", "Yes."
         if v == NO:
             return "no", "No."
         return "maybe", "Hmm... sometimes, in a manner of speaking."
 
-    def try_guess(self, text: str) -> bool:
+    def try_guess(self, text: str) -> tuple[bool, str | None]:
         t = text.lower().strip()
         t = t.removeprefix("is it ").removesuffix("?").strip()
         t = t.removeprefix("a ").removeprefix("an ").removeprefix("the ").strip()
         secret = self.secret.lower()
-        if not t or len(t) < 3:
-            return False
+        if t and len(t) >= 3 and (t == secret or (len(t) >= 4 and (t in secret or secret in t))):
+            self.solved = True
+            return True, None
+        known = resolve_entity(text)
+        if known is not None:
+            return False, heat_label(similarity(self.secret, known))
+        return False, None
+
+    def bluff_disclosure(self) -> str | None:
+        if not self.bluff:
+            return None
+        if self.bluff_used and self.bluff_attr:
+            q = QUESTIONS[self.bluff_attr][0]
+            return f"(confession: I lied once — when you asked about '{q.rstrip('?').lower()}')"
+        return None
         if t == secret or (len(t) >= 4 and (t in secret or secret in t)):
             self.solved = True
             return True
         return False
 
 
-def daily_secret(day_ordinal: int) -> str:
+WEEKDAY_THEMES = {
+    1: ("Animal Tuesday", lambda e: e["vec"]["is_animal"] == YES),
+    4: ("Cinema Friday", lambda e: e["vec"]["from_screen"] == YES or e["vec"]["is_fictional"] == YES),
+    5: ("Feast Saturday", lambda e: e["vec"]["is_edible"] == YES),
+}
+
+
+def daily_info(day_ordinal: int) -> tuple[str, str | None]:
+    from datetime import date as _date
+
+    weekday = _date.fromordinal(day_ordinal).weekday()
+    theme = WEEKDAY_THEMES.get(weekday)
+    pool = [n for n in ENTITY_NAMES if theme[1](ENTITIES[n])] if theme else list(ENTITY_NAMES)
+    if not pool:
+        pool = list(ENTITY_NAMES)
     digest = hashlib.sha256(f"mindmeld-{day_ordinal}".encode()).hexdigest()
-    idx = int(digest, 16) % len(ENTITY_NAMES)
-    return ENTITY_NAMES[idx]
+    secret = sorted(pool)[int(digest, 16) % len(pool)]
+    return secret, (theme[0] if theme else None)
 
 
-def share_card(day: int, ai_questions: int | None, ai_won: bool, you_questions: int | None, you_won: bool) -> str:
+def daily_secret(day_ordinal: int) -> str:
+    return daily_info(day_ordinal)[0]
+
+
+def share_card(day: int, ai_questions: int | None, ai_won: bool, you_questions: int | None, you_won: bool, theme: str | None = None, rank: str | None = None) -> str:
     ai_line = f"AI read you in {ai_questions} 🟩" if ai_won else "AI failed to read you 🟥"
     you_line = f"You read the AI in {you_questions} 🟩" if you_won else "The AI kept its secret 🟥"
     if you_won and (not ai_won or (you_questions or 99) <= (ai_questions or 99)):
@@ -292,4 +373,6 @@ def share_card(day: int, ai_questions: int | None, ai_won: bool, you_questions: 
         verdict = "🧠 THE AI WINS"
     else:
         verdict = "🤝 A RARE DRAW"
-    return f"MIND MELD #{day}\n{ai_line}\n{you_line}\n{verdict}"
+    header = f"MIND MELD #{day}" + (f" · {theme}" if theme else "")
+    footer = verdict + (f"\nrank: {rank}" if rank else "")
+    return f"{header}\n{ai_line}\n{you_line}\n{footer}"

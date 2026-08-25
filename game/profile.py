@@ -1,4 +1,4 @@
-"""Player profile: streaks and lifetime stats, JSON-persisted in-project."""
+"""Player profile: streaks, ranks, achievements — JSON-persisted in-project."""
 
 from __future__ import annotations
 
@@ -7,6 +7,23 @@ from datetime import date
 from pathlib import Path
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "data" / "profile.json"
+
+RANKS = [
+    (30, "Geniebreaker"),
+    (15, "Mistwalker"),
+    (7, "Thought Thief"),
+    (3, "Mind Reader"),
+    (0, "Apprentice"),
+]
+
+ACHIEVEMENTS = {
+    "first_blood": "First Blood — win your first meld",
+    "surgical": "Surgical — read the AI in 6 questions or fewer",
+    "stumper": "Stumper — the AI failed to read you",
+    "on_fire": "On Fire — 5-day streak",
+    "teacher": "Teacher — the genie learned something from you",
+    "hard_winner": "Storm Survivor — win a meld on hard mode",
+}
 
 
 class Profile:
@@ -19,6 +36,8 @@ class Profile:
         self.current_streak = 0
         self.best_streak = 0
         self.last_daily_day: int | None = None
+        self.achievements: list[str] = []
+        self.learned_count = 0
         self.load()
 
     def load(self) -> None:
@@ -28,15 +47,16 @@ class Profile:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return
-        for key in ("games_played", "wins", "losses", "draws", "current_streak", "best_streak", "last_daily_day"):
+        for key in ("games_played", "wins", "losses", "draws", "current_streak", "best_streak",
+                    "last_daily_day", "achievements", "learned_count"):
             if key in data:
                 setattr(self, key, data[key])
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.__dict_public__(), indent=2) + "\n", encoding="utf-8")
+        self.path.write_text(json.dumps(self._as_dict(), indent=2) + "\n", encoding="utf-8")
 
-    def __dict_public__(self) -> dict:
+    def _as_dict(self) -> dict:
         return {
             "games_played": self.games_played,
             "wins": self.wins,
@@ -45,7 +65,39 @@ class Profile:
             "current_streak": self.current_streak,
             "best_streak": self.best_streak,
             "last_daily_day": self.last_daily_day,
+            "achievements": self.achievements,
+            "learned_count": self.learned_count,
         }
+
+    def rank(self) -> str:
+        for threshold, name in RANKS:
+            if self.wins >= threshold:
+                return name
+        return RANKS[-1][1]
+
+    def _unlock(self, key: str, newly: list[str]) -> None:
+        if key not in self.achievements:
+            self.achievements.append(key)
+            newly.append(key)
+
+    def register_game(self, ai_won: bool, ai_q: int | None, you_won: bool, you_q: int | None, hard: bool = False, learned_new: bool = False) -> list[str]:
+        """Record a finished duel. Returns newly unlocked achievement keys."""
+        newly: list[str] = []
+        you_beat_it = you_won and (not ai_won or (you_q or 99) <= (ai_q or 99))
+        if you_beat_it:
+            self._unlock("first_blood", newly)
+            if hard:
+                self._unlock("hard_winner", newly)
+        if you_won and you_q is not None and you_q <= 6:
+            self._unlock("surgical", newly)
+        if not ai_won:
+            self._unlock("stumper", newly)
+        if self.current_streak >= 5:
+            self._unlock("on_fire", newly)
+        if learned_new:
+            self._unlock("teacher", newly)
+        self.save()
+        return newly
 
     def record_daily(self, day_ordinal: int, won: bool) -> None:
         if self.last_daily_day == day_ordinal:
@@ -77,6 +129,7 @@ class Profile:
 
     def summary(self) -> str:
         return (
-            f"games {self.games_played} · wins {self.wins} · "
-            f"streak {self.current_streak} (best {self.best_streak})"
+            f"rank {self.rank()} · games {self.games_played} · wins {self.wins} · "
+            f"streak {self.current_streak} (best {self.best_streak}) · "
+            f"achievements {len(self.achievements)}/{len(ACHIEVEMENTS)}"
         )

@@ -24,6 +24,9 @@ from game.personality import (
     AI_LOSES,
     AI_WINS,
     AI_WINS_DUEL,
+    ANSWER_MAYBE,
+    ANSWER_NO,
+    ANSWER_YES,
     CORRECT_GUESS,
     INTROS,
     INTROS_DAILY,
@@ -238,6 +241,7 @@ def personality_docs() -> list[str]:
         (INTROS, "intro"), (INTROS_DAILY, "daily intro"), (AI_WINS, "ai wins"),
         (AI_LOSES, "ai loses"), (YOU_WIN_DUEL, "you win duel"), (AI_WINS_DUEL, "ai wins duel"),
         (WRONG_GUESS, "wrong guess"), (CORRECT_GUESS, "correct guess"), (SECRET_PICKED, "secret picked"),
+        (ANSWER_YES, "answer yes"), (ANSWER_NO, "answer no"), (ANSWER_MAYBE, "answer maybe"),
     ]:
         for _ in range(10):
             for line in group:

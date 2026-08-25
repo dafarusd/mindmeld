@@ -9,9 +9,12 @@ import time
 from datetime import date
 
 from . import voice
-from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_secret, parse_answer, share_card
+from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_info, parse_answer, share_card
 from .kb import ENTITIES
 from .personality import (
+    BLUFF_RULE,
+    HUNCH_AGREE,
+    HUNCH_LABEL,
     INTROS,
     INTROS_DAILY,
     SECRET_PICKED,
@@ -21,6 +24,8 @@ from .personality import (
 )
 from .profile import Profile
 from .questions import QUESTIONS
+
+ANSWER_WORD = {1.0: "yes", 0.0: "no", 0.5: "maybe"}
 
 PURPLE = "\x1b[95m"
 DEEP_PURPLE = "\x1b[35m"
@@ -126,15 +131,24 @@ def ask_answer(scr: Screen, prompt: str) -> float | None:
     return v
 
 
-def play_round_a(scr: Screen, rng: random.Random) -> tuple[int | None, bool]:
-    mr = MindReader(rng=rng)
-    scr.type_out("Answer with yes / no / maybe. I give you up to twenty questions.", DIM)
+def mist_bar(share: float, width: int = 16) -> str:
+    filled = round(share * width)
+    return "█" * filled + "░" * (width - filled)
+
+
+def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUESTIONS) -> tuple[int | None, bool, MindReader]:
+    mr = MindReader(rng=rng, max_questions=max_questions)
+    scr.type_out(f"Answer with yes / no / maybe. I give you up to {max_questions} questions.", DIM)
     print()
     while True:
         attr = mr.next_question()
         if attr is None:
-            guess = mr.best_candidate()
-            return finish_guess(scr, mr, guess)
+            while len(mr.guesses_made) < 3:
+                mr.guess()
+                q, won = finish_guess(scr, mr, mr.guesses_made[-1])
+                if won or q is None:
+                    return q, won, mr
+            return len(mr.asked), False, mr
         scr.thinking(rng)
         qnum = len(mr.asked) + 1
         question = rephrase_question(rng, rng.choice(QUESTIONS[attr]))
@@ -142,26 +156,37 @@ def play_round_a(scr: Screen, rng: random.Random) -> tuple[int | None, bool]:
         try:
             value = ask_answer(scr, scr.c("    (y/n/m): ", DIM))
         except (EOFError, KeyboardInterrupt):
-            return None, False
+            return None, False, mr
         if value is None:
             print(scr.c("    (the spirits need yes, no, or maybe)", DIM))
             continue
         mr.answer(attr, value)
+        share = mr.top_share()
+        print(scr.c(f"    mist: {mist_bar(share)} {share*100:.0f}%", PURPLE))
         if mr.should_guess():
             guess = mr.guess()
             correct, won = finish_guess(scr, mr, guess)
             if won:
-                return correct, True
-            if len(mr.guesses_made) >= 3 or mr.questions_left() <= 0:
-                return len(mr.asked), False
+                return correct, True, mr
+            if len(mr.guesses_made) >= 3:
+                return len(mr.asked), False, mr
 
 
 def finish_guess(scr: Screen, mr: MindReader, guess: str) -> tuple[int | None, bool]:
     print()
     scr.genie("thinking")
     scr.type_out(f"I see it forming... it's...", GOLD, delay=0.03)
+    hunch_line = None
+    if voice.brain_available():
+        transcript = [f"Q: {QUESTIONS[attr][0]} A: {ANSWER_WORD[value]}" for attr, value in mr.answers]
+        hunch_line = voice.hunch(transcript)
     time.sleep(0.4 if scr.animate else 0)
     scr.type_out(f"   ✦ {guess.upper()} ✦", PURPLE + BOLD, delay=0.04)
+    if hunch_line:
+        if hunch_line.lower() == guess.lower():
+            scr.type_out(f"   🧠 {HUNCH_AGREE}", CYAN)
+        else:
+            scr.type_out(f"   🧠 {HUNCH_LABEL}: “{hunch_line}”", CYAN)
     try:
         raw = input(scr.c("Am I right? (y/n): ", CYAN))
     except (EOFError, KeyboardInterrupt):
@@ -177,9 +202,11 @@ def finish_guess(scr: Screen, mr: MindReader, guess: str) -> tuple[int | None, b
     return len(mr.asked), False
 
 
-def play_round_b(scr: Screen, rng: random.Random, secret: str) -> tuple[int | None, bool]:
-    keeper = SecretKeeper(secret=secret, rng=rng)
+def play_round_b(scr: Screen, rng: random.Random, secret: str, bluff: bool = True) -> tuple[int | None, bool]:
+    keeper = SecretKeeper(secret=secret, rng=rng, bluff=bluff)
     scr.type_out(pick(rng, SECRET_PICKED), PURPLE)
+    if bluff:
+        scr.type_out(BLUFF_RULE, GOLD)
     scr.type_out("Ask me anything about a trait ('is it alive?'), or type your guess.", DIM)
     print()
     while keeper.questions_asked < MAX_QUESTIONS and not keeper.solved:
@@ -202,22 +229,35 @@ def play_round_b(scr: Screen, rng: random.Random, secret: str) -> tuple[int | No
             and not any(w in lowered for w in ("is", "are", "does", "do", "can", "would", "could", "was", "were", "did"))
         )
         if looks_like_guess or lowered in {n.lower() for n in ENTITIES}:
-            if keeper.try_guess(raw):
+            correct, heat = keeper.try_guess(raw)
+            if correct:
                 scr.genie("shook")
                 scr.type_out(f"...HOW. Yes. It was {secret}.", GREEN)
+                disclosure = keeper.bluff_disclosure()
+                if disclosure:
+                    scr.type_out(disclosure, DIM)
                 return keeper.questions_asked + 1, True
             scr.thinking(rng)
-            scr.type_out(f"No. It is not {raw.strip()}.", RED)
+            if heat:
+                scr.type_out(f"No. It is not {raw.strip()} — {heat}", RED)
+            else:
+                scr.type_out(f"No. It is not {raw.strip()}. (never heard of it, in fact)", RED)
             keeper.questions_asked += 1
             continue
         scr.thinking(rng)
-        _, reply = keeper.answer_question(raw)
+        kind, reply = keeper.answer_question(raw)
         color = GREEN if reply == "Yes." else (RED if reply == "No." else GOLD)
+        flavor = "" if kind == "unknown" else voice.banter(f"answer {kind}", rng)
         scr.type_out(f"mind meld: {reply}", color)
+        if flavor:
+            scr.type_out(f"           {flavor}", DIM)
     if keeper.solved:
         return keeper.questions_asked, True
     scr.genie("happy")
     scr.type_out(f"Twenty questions, gone. My secret stays mine: it was {secret.upper()}.", GOLD)
+    disclosure = keeper.bluff_disclosure()
+    if disclosure:
+        scr.type_out(disclosure, DIM)
     return MAX_QUESTIONS, False
 
 
@@ -225,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     daily = "--daily" in argv or not argv
     no_anim = "--no-anim" in argv
+    hard = "--hard" in argv
     if "--brain-voice" in argv:
         voice.set_enabled(True)
     if "--no-brain-voice" in argv:
@@ -243,18 +284,42 @@ def main(argv: list[str] | None = None) -> int:
         scr.type_out("You have already faced today's secret. The mists reset at midnight.", DIM)
         scr.type_out("(Play anyway with --free)", DIM)
         return 0
+    secret, theme = daily_info(day) if daily else (None, None)
     if daily:
-        scr.type_out(pick(rng, INTROS_DAILY), PURPLE)
+        intro = pick(rng, INTROS_DAILY)
+        if theme:
+            intro += f" Today is {theme}."
+        scr.type_out(intro, PURPLE)
     else:
         scr.type_out(pick(rng, INTROS), PURPLE)
     print()
 
     scr.type_out("ROUND ONE — I read YOUR mind. Think of an animal, object, person, or character.", BOLD)
     input(scr.c("Press enter when you have it...", DIM))
-    ai_q, ai_won = play_round_a(scr, rng)
+    ai_q, ai_won, mr = play_round_a(scr, rng, max_questions=10 if hard else MAX_QUESTIONS)
     if ai_q is None:
         print(scr.c("\nThe mist dissipates... (game abandoned)", DIM))
         return 1
+    learned_new = False
+    if not ai_won:
+        scr.genie("shook")
+        scr.type_out("You stumped me. WHAT were you thinking of?", GOLD)
+        scr.type_out("(teach me, and I shall never lose to it again)", DIM)
+        try:
+            name = input(scr.c("it was: ", CYAN)).strip()
+        except (EOFError, KeyboardInterrupt):
+            name = ""
+        if name:
+            from . import kb as _kb
+            from .learn import LearnError, learn
+
+            try:
+                clean = learn(name, mr.answers)
+                _kb.reload()
+                learned_new = True
+                scr.type_out(f"'{clean}' — etched into my mind. Forever.", GREEN)
+            except LearnError as exc:
+                scr.type_out(str(exc), RED)
     if ai_won:
         scr.type_out(voice.banter("ai wins", rng), GREEN)
     else:
@@ -262,11 +327,11 @@ def main(argv: list[str] | None = None) -> int:
 
     print()
     scr.type_out("ROUND TWO — now YOU read MY mind.", BOLD)
-    secret = daily_secret(day) if daily else pick(rng, list(ENTITIES.keys()))
+    secret = secret or pick(rng, list(ENTITIES.keys()))
     you_q, you_won = play_round_b(scr, rng, secret)
 
     print()
-    card = share_card(day % 1000, ai_q, ai_won, you_q, you_won)
+    card = share_card(day % 1000, ai_q, ai_won, you_q, you_won, theme=theme if daily else None, rank=profile.rank())
     scr.box(card, GOLD)
 
     you_beat_it = you_won and (not ai_won or (you_q or 99) <= (ai_q or 99))
@@ -279,6 +344,11 @@ def main(argv: list[str] | None = None) -> int:
         profile.record_daily(day, you_beat_it)
     else:
         profile.record_freeplay(you_beat_it)
+    from .profile import ACHIEVEMENTS
+
+    newly = profile.register_game(ai_won, ai_q, you_won, you_q, hard=hard, learned_new=learned_new)
+    for key in newly:
+        scr.type_out(f"  🏆 achievement unlocked: {ACHIEVEMENTS[key]}", GOLD)
     print(scr.c(f"\n  {profile.summary()}", DIM))
     scr.type_out("\nShare your card. Challenge a friend. Return tomorrow.", DIM)
     return 0

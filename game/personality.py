@@ -68,6 +68,29 @@ SECRET_PICKED = [
     "Something is hidden in my mind. Twenty questions to find it. Begin.",
 ]
 
+BLUFF_RULE = "One rule: I may lie exactly once. Catch it if you can."
+
+ANSWER_YES = [
+    "Yes... but you'll wish it was no.",
+    "Yes. The mist nods.",
+    "Yes — and that narrows it nicely, doesn't it?",
+    "Yes. A fine question.",
+]
+ANSWER_NO = [
+    "No. Not even close.",
+    "No. Cold trail, that one.",
+    "No — and no is a fine lantern.",
+    "No. The mist shakes its head.",
+]
+ANSWER_MAYBE = [
+    "Hmm... sometimes. In a manner of speaking.",
+    "The mist shrugs: maybe.",
+    "Half a yes. Keep digging.",
+]
+
+HUNCH_AGREE = "The brain and the mist agree."
+HUNCH_LABEL = "the brain's hunch"
+
 def pick(rng: random.Random, options: list[str]) -> str:
     return rng.choice(options)
 

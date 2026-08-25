@@ -9,6 +9,8 @@ never contradict itself inside a round. Accuracy of this file is the product.
 
 YES, NO, MAYBE = 1.0, 0.0, 0.5
 
+from pathlib import Path
+
 ATTRIBUTES = [
     "alive_today",
     "is_animal",
@@ -530,10 +532,108 @@ def _build():
     add("Hello Kitty", CHARACTER, "mouthless global icon cat", is_animal=YES, is_human=NO, is_animated=YES, is_mammal=YES)
     add("Barbie", CHARACTER, "fashion doll come to life", is_human=YES, is_female=YES, is_animated=MAYBE, is_toy=MAYBE)
 
+    add("leopard", MAMMAL, "spotted big cat of the trees", is_dangerous=YES, bigger_than_breadbox=YES, has_spots=YES, purrs_or_meows=MAYBE)
+    add("sloth", MAMMAL, "slowest mammal, hangs upside down", found_in_home=NO)
+    add("platypus", MAMMAL, "egg-laying duck-billed oddity", is_australian=YES, can_swim=YES, four_legs=YES)
+    add("hyena", MAMMAL, "laughing scavenger", is_dangerous=MAYBE)
+    add("donkey", MAMMAL, "stubborn beast of burden", bigger_than_breadbox=YES)
+    add("llama", MAMMAL, "fluffy spitting pack animal", bigger_than_breadbox=YES)
+    add("vulture", BIRD, "circling scavenger of the sky")
+    add("hummingbird", BIRD, "hovering nectar sipper", handheld=NO)
+    add("toucan", BIRD, "oversized colorful bill")
+    add("orca", MAMMAL, "black-and-white ocean apex hunter", is_black_and_white=YES, can_swim=YES, lives_in_water=YES, four_legs=NO, has_fur=NO, bigger_than_breadbox=YES, is_dangerous=YES)
+    add("manatee", MAMMAL, "gentle sea cow", can_swim=YES, lives_in_water=YES, four_legs=NO, has_fur=NO, bigger_than_breadbox=YES)
+    add("pufferfish", SEA, "inflating spiky defender", is_dangerous=MAYBE, is_round=MAYBE)
+    add("dragonfly", INSECT, "helicopter of the pond", can_fly=YES, has_wings=YES)
+    add("beetle", INSECT, "armored crawler")
+    add("caterpillar", INSECT, "future butterfly")
+    add("moth", INSECT, "night-flying dust wings", can_fly=YES, has_wings=YES, active_at_night=YES)
+    add("cockroach", INSECT, "unkillable kitchen invader", found_in_home=YES)
+
+    add("bagel", FOOD, "boiled-then-baked ring", is_round=YES, is_a_grain=YES, eaten_with_hands=YES)
+    add("croissant", FOOD, "flaky crescent of butter", is_sweet=MAYBE, eaten_with_hands=YES)
+    add("pancakes", FOOD, "flat griddled breakfast stack", is_round=YES, is_sweet=MAYBE)
+    add("bacon", FOOD, "crispy cured strips", contains_meat=YES)
+    add("sausage", FOOD, "seasoned ground-meat link", contains_meat=YES)
+    add("tofu", FOOD, "soybean protein block")
+    add("avocado", FOOD, "creamy green stone fruit", is_fruit_or_veg=YES)
+    add("pineapple", FOOD, "spiky tropical sweetness", is_fruit_or_veg=YES, is_sweet=YES)
+    add("coconut", FOOD, "hairy tropical hard shell", is_fruit_or_veg=YES, is_round=YES)
+    add("lemon", FOOD, "sour yellow citrus", is_fruit_or_veg=YES, is_round=MAYBE)
+    add("garlic", FOOD, "pungent vampire repellent", is_fruit_or_veg=YES)
+
+    add("remote control", OBJECT, "couch-bound channel changer", found_in_home=YES, is_electronic=YES, handheld=YES)
+    add("light bulb", OBJECT, "glass globe of light", gives_light=YES, is_electronic=MAYBE, found_in_home=YES, handheld=YES)
+    add("scarf", OBJECT, "neck warmer", is_wearable=YES, found_in_home=YES)
+    add("belt", OBJECT, "waist cincher", is_wearable=YES, found_in_home=YES)
+    add("gloves", OBJECT, "hand warmers", is_wearable=YES, found_in_home=YES)
+    add("wallet", OBJECT, "pocket money holder", handheld=YES, found_in_home=YES)
+    add("sunglasses", OBJECT, "shades for bright days", is_wearable=YES, handheld=YES)
+    add("helmet", OBJECT, "head protector", is_wearable=YES, associated_with_sport=MAYBE)
+
+    add("ukulele", INSTRUMENT, "tiny four-string strummer", handheld=YES)
+    add("banjo", INSTRUMENT, "twangy round-bodied picker", is_round=YES)
+    add("accordion", INSTRUMENT, "squeezing bellows box", bigger_than_breadbox=MAYBE)
+
+    add("Neil Armstrong", FIGURE, "first boot on the moon", studied_stars=MAYBE)
+    add("Amelia Earhart", FIGURE, "vanished pioneer of the skies", is_female=YES)
+    add("Ada Lovelace", FIGURE, "first programmer in history", is_female=YES, is_scientist=MAYBE, is_tech_or_business=MAYBE)
+    add("Alan Turing", FIGURE, "codebreaker father of computing", is_scientist=YES, is_tech_or_business=MAYBE)
+    add("Stephen Hawking", FIGURE, "black-hole mind in a wheelchair", is_scientist=YES, studied_stars=YES)
+    add("J.K. Rowling", PERSON, "author of the boy wizard", is_female=YES, is_artist_or_musician=YES)
+    add("Bob Marley", FIGURE, "reggae prophet of peace", makes_music=YES, is_artist_or_musician=YES)
+    add("Lady Gaga", PERSON, "meat-dress pop avant-gardist", is_female=YES, makes_music=YES, is_artist_or_musician=YES, known_for_dance=MAYBE)
+
+    add("Groot", CHARACTER, "three-word tree guardian", is_human=NO, is_plant=MAYBE, has_superpowers=MAYBE, from_space_or_scifi=YES)
+    add("Jack Sparrow", CHARACTER, "drunken compass-spinning pirate", is_human=YES, searches_for_treasure=MAYBE)
+    add("Winnie the Pooh", CHARACTER, "honey-stuffed bear of very little brain", is_animal=YES, is_human=NO, is_mammal=YES, is_animated=YES)
+    add("Scooby-Doo", CHARACTER, "snack-driven mystery mutt", is_animal=YES, is_human=NO, is_mammal=YES, is_animated=YES, barks=YES, is_a_detective=MAYBE)
+    add("Garfield", CHARACTER, "lasagna-loving Monday hater", is_animal=YES, is_human=NO, is_mammal=YES, is_animated=YES, purrs_or_meows=YES)
+    add("Snoopy", CHARACTER, "doghouse philosopher beagle", is_animal=YES, is_human=NO, is_mammal=YES, is_animated=YES, barks=YES)
+    add("Bart Simpson", CHARACTER, "el barto, underachiever and proud", is_human=YES, is_animated=YES)
+    add("Peter Griffin", CHARACTER, "rhode island's roundest dad", is_human=YES, is_animated=YES)
+    add("Minnie Mouse", CHARACTER, "polka-dot bow mouse", is_animal=YES, is_human=NO, is_mammal=YES, is_animated=YES, is_female=YES)
+    add("Olaf", CHARACTER, "warm-hug-loving snowman", is_human=NO, is_animated=YES, served_cold=YES)
+    add("Simba", CHARACTER, "the lion king himself", is_animal=YES, is_human=NO, is_mammal=YES, is_animated=YES, is_royal=YES)
+    add("Nemo", CHARACTER, "lost little clownfish", is_animal=YES, is_human=NO, is_animated=YES, lives_in_water=YES, can_swim=YES)
+    add("Woody", CHARACTER, "pull-string cowboy doll", is_human=YES, is_animated=YES, is_toy=YES, wears_a_costume=YES)
+    add("Buzz Lightyear", CHARACTER, "to infinity and beyond", is_human=YES, is_animated=YES, is_toy=YES, wears_a_costume=YES, from_space_or_scifi=YES)
+
     return table
 
 
 ENTITIES = _build()
+
+
+def _merge_learned() -> None:
+    import json
+
+    path = Path(__file__).resolve().parent.parent / "data" / "learned.json"
+    learned: dict = {}
+    if path.exists():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                learned = raw
+        except (json.JSONDecodeError, OSError):
+            pass
+    for key in [k for k, v in ENTITIES.items() if v.get("learned") and k not in learned]:
+        del ENTITIES[key]
+    for key, entry in learned.items():
+        if isinstance(entry, dict) and "vec" in entry and key not in ENTITIES:
+            ENTITIES[key] = {"name": key, "blurb": entry.get("blurb", "learned from a challenger"), "vec": {a: entry["vec"].get(a, MAYBE) for a in ATTRIBUTES}, "learned": True}
+
+
+_merge_learned()
+
 ENTITY_NAMES = sorted(ENTITIES.keys())
 
 ATTR_MATRIX = [tuple(ENTITIES[n]["vec"][a] for a in ATTRIBUTES) for n in ENTITY_NAMES]
+
+
+def reload() -> None:
+    """Re-merge learned entities and rebuild indexes (for long-lived servers)."""
+    global ENTITY_NAMES, ATTR_MATRIX
+    _merge_learned()
+    ENTITY_NAMES = sorted(ENTITIES.keys())
+    ATTR_MATRIX = [tuple(ENTITIES[n]["vec"][a] for a in ATTRIBUTES) for n in ENTITY_NAMES]
