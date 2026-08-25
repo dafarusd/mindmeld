@@ -60,6 +60,23 @@ def main() -> None:
         "hunch_agree": personality.HUNCH_AGREE,
         "answer_words": {k: sorted(v) for k, v in __import__("game.questions", fromlist=["ANSWER_WORDS"]).ANSWER_WORDS.items()},
     }
+    # Carry the baked voice forward. build_voice.py writes voice_model into
+    # data.js; this script rebuilds everything else. Without this, exporting
+    # the KB silently wipes the model's voice and the game falls back to the
+    # curated script with no warning.
+    if OUT.exists():
+        prev_raw = OUT.read_text(encoding="utf-8")
+        prefix = "(typeof window !== 'undefined' ? window : globalThis).MM_DATA = "
+        if prev_raw.startswith(prefix):
+            try:
+                prev = json.loads(prev_raw[len(prefix):].rstrip().rstrip(";"))
+                if prev.get("voice_model"):
+                    data["voice_model"] = prev["voice_model"]
+                    kept = sum(len(v) for v in prev["voice_model"].values())
+                    print(f"  carried forward {kept} baked voice lines")
+            except Exception as exc:
+                print(f"  WARNING: could not read existing voice_model ({exc})")
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, ensure_ascii=False)
     OUT.write_text(f"(typeof window !== 'undefined' ? window : globalThis).MM_DATA = {payload};\n", encoding="utf-8")

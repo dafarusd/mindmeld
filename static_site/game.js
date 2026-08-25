@@ -179,6 +179,14 @@ const MM = (() => {
     return "🥶 ice cold — wrong kingdom entirely";
   }
 
+  const UNKNOWN_REPLIES = [
+    "No. No. Not even\u2014 what IS that? The mists have no word for it. Ask me another, that one's free.",
+    "The spirits conferred. The spirits shrugged. Free question, ask again.",
+    "Never heard of it, never seen it, wouldn't know it if it bit me. Doesn't count \u2014 go on.",
+    "That question slid straight off the mists. No charge. Try a plain trait: alive? metal? famous?",
+    "I have consulted the ages. The ages said 'what?'. Free of charge, ask another.",
+  ];
+
   class SecretKeeper {
     constructor(secret, { bluff = true, bluffCount = 1, invertFirstN = 0, rng = Math.random } = {}) {
       this.secret = secret;
@@ -198,9 +206,13 @@ const MM = (() => {
       }
     }
     answerQuestion(text) {
-      this.questionsAsked++;
       const attr = matchAttribute(text);
-      if (!attr) return ["unknown", "The spirits cannot parse that question. Ask about a trait — alive? animal? metal? famous?"];
+      // A question the genie can't understand costs the player nothing. The
+      // knowledge base has no attribute for colour, weight, age or place, so
+      // plenty of fair questions land here. Charging for them made round 2
+      // unwinnable.
+      if (!attr) return ["unknown", UNKNOWN_REPLIES[Math.floor(Math.random() * UNKNOWN_REPLIES.length)]];
+      this.questionsAsked++;
       let v = ENTITIES[this.secret].vec[attr];
       if (this.bluffAttrs.includes(attr)) { this.bluffUsed = true; v = v === YES ? NO : v === NO ? YES : v; }
       if (this.questionsAsked <= this.invertFirstN) v = v === YES ? NO : v === NO ? YES : v;

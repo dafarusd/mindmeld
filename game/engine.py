@@ -163,6 +163,31 @@ class MindReader:
 
 
 SYNONYMS: dict[str, str] = {
+    # Added after live play: 40% of natural questions matched nothing.
+    'hold': 'handheld',
+    'carry': 'handheld',
+    'pick up': 'handheld',
+    'in your hand': 'handheld',
+    'kitchen': 'found_in_home',
+    'indoors': 'found_in_home',
+    'at home': 'found_in_home',
+    'heavy': 'bigger_than_breadbox',
+    'plug': 'is_electronic',
+    'charge': 'is_electronic',
+    'travel in': 'is_vehicle',
+    'work': 'is_tool',
+    'job': 'is_tool',
+    'fix': 'is_tool',
+    'repair': 'is_tool',
+    'lamp': 'gives_light',
+    'sit on': 'is_furniture',
+    'taste': 'is_edible',
+    'own one': 'kept_as_pet',
+    'clothing': 'is_wearable',
+    'sound': 'makes_music',
+    'noise': 'makes_music',
+    'tree': 'is_plant',
+
     "alive": "alive_today", "living": "alive_today", "dead": "alive_today",
     "animal": "is_animal", "creature": "is_animal", "beast": "is_animal",
     "human": "is_human", "person": "is_human", "man": "is_human", "woman": "is_human",
@@ -250,6 +275,20 @@ SYNONYMS: dict[str, str] = {
 }
 
 
+UNKNOWN_REPLIES = [
+    "No. No. Not even— what IS that? The mists have no word for it. Ask me another, that one's free.",
+    "The spirits conferred. The spirits shrugged. Free question, ask again.",
+    "Never heard of it, never seen it, wouldn't know it if it bit me. Doesn't count — go on.",
+    "That question slid straight off the mists. No charge. Try a plain trait: alive? metal? famous?",
+    "I have consulted the ages. The ages said 'what?'. Free of charge, ask another.",
+]
+
+
+def UNKNOWN_REPLY() -> str:
+    import random as _r
+    return _r.choice(UNKNOWN_REPLIES)
+
+
 def match_attribute(question_text: str) -> str | None:
     text = question_text.lower()
     best, best_len = None, 0
@@ -312,10 +351,14 @@ class SecretKeeper:
         return self.bluff_attrs[0] if self.bluff_attrs else None
 
     def answer_question(self, text: str) -> tuple[str, str]:
-        self.questions_asked += 1
         attr = match_attribute(text)
         if attr is None:
-            return "unknown", "The spirits cannot parse that question. Ask about a trait — alive? animal? metal? famous?"
+            # A question the genie can't understand costs the player nothing.
+            # The knowledge base has no attribute for colour, weight, age or
+            # place, so plenty of reasonable questions land here through no
+            # fault of the asker. Charging for them made round 2 unwinnable.
+            return "unknown", UNKNOWN_REPLY()
+        self.questions_asked += 1
         v = ENTITIES[self.secret]["vec"][attr]
         if attr in self.bluff_attrs:
             self.bluff_used = True
