@@ -206,7 +206,7 @@ def handle(body: dict, profile: Profile) -> dict:
             s.pending_attr = attr
             return {"event": "round_a_start", "say": "Think of something NEW. Five questions. No mercy.",
                     "question": s.rng.choice(QUESTIONS[attr]), "candidates": s.mr.top_candidates(3),
-                    "boss": True, "gauntlet": True, "state": _state(profile)}
+                    "boss": False, "gauntlet": True, "state": _state(profile)}
         _begin_round_b(s)
         return {"event": "round_b_start", "say": "Wise. The mist respects caution.", "state": _state(profile)}
 

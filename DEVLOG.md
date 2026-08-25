@@ -156,3 +156,23 @@ the boss gets its own image.
   (genie helper now boss-aware); boss counter said "of 20" (state now
   carries the session's question cap).
 - Tests: 62 total, all green.
+
+## 2026-08-25 — v1.4.1: the boss is earned
+
+User report: "the boss is accessible from the start." Root cause, owned:
+my own screenshot test left `current_streak: 5` in the player's live
+profile — the boss button was showing because of test residue, not real
+wins. The save signature proved it (best_streak 0, no daily day).
+
+- Profile surgically cleaned: test residue removed, the player's real
+  record (games/wins/losses) untouched.
+- `--boss` now requires the earned 5-streak like everything else;
+  hidden `--force-boss` remains for development only.
+- Gauntlet got its own visual identity: gold "charged" genie. Crimson is
+  reserved for the earned boss — the two can no longer be confused.
+- Locked-content teaser: the boss button now shows dimmed —
+  "👹 ??? — win 5 straight to unleash". Visible locked content is a
+  proven desire-driver, and now the gate is honest.
+- Bug found by screenshot: hunch line lingered into the next question —
+  now hidden on each new question.
+- Tests: 65 total, all green.

@@ -133,5 +133,25 @@ class TestGrudgeMemory(unittest.TestCase):
         self.assertNotIn("boss_slayer", newly2)
 
 
+class TestBossGating(unittest.TestCase):
+    def fresh(self):
+        tmp = tempfile.TemporaryDirectory()
+        return Profile(Path(tmp.name) / "p.json")
+
+    def test_boss_locked_below_streak_5(self):
+        p = self.fresh()
+        p.current_streak = 4
+        self.assertFalse(p.boss_available())
+
+    def test_boss_unlocks_at_5(self):
+        p = self.fresh()
+        p.current_streak = 5
+        self.assertTrue(p.boss_available())
+
+    def test_boss_flag_requires_earned_streak(self):
+        p = self.fresh()
+        self.assertFalse(p.boss_available())
+
+
 if __name__ == "__main__":
     unittest.main()

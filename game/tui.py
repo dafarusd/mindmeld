@@ -149,8 +149,8 @@ def mist_bar(share: float, width: int = 16) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
-def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUESTIONS, boss: bool = False, stumps: list | None = None) -> tuple[int | None, bool, MindReader]:
-    mr = MindReader(rng=rng, max_questions=max_questions, boss=boss)
+def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUESTIONS, boss: bool = False, gauntlet: bool = False, stumps: list | None = None) -> tuple[int | None, bool, MindReader]:
+    mr = MindReader(rng=rng, max_questions=max_questions, boss=boss or gauntlet)
     stump_names = {s["name"] for s in (stumps or [])}
     revenge_said = False
     scr.type_out(f"Answer with yes / no / maybe. I give you up to {max_questions} questions.", DIM)
@@ -179,7 +179,8 @@ def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUEST
             continue
         mr.answer(attr, value)
         share = mr.top_share()
-        print(scr.c(f"    mist: {mist_bar(share)} {share*100:.0f}%", RED if boss else PURPLE))
+        bar_color = RED if boss else (GOLD if gauntlet else PURPLE)
+        print(scr.c(f"    mist: {mist_bar(share)} {share*100:.0f}%", bar_color))
         if not revenge_said and stump_names and len(mr.asked) >= 3:
             if stump_names & set(mr.top_candidates(3)):
                 scr.type_out(pick(rng, REVENGE_SENSE), GOLD)
@@ -307,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     daily = "--daily" in argv or not argv
     no_anim = "--no-anim" in argv
     hard = "--hard" in argv
-    boss = "--boss" in argv
+    force_boss = "--force-boss" in argv
     if "--brain-voice" in argv:
         voice.set_enabled(True)
     if "--no-brain-voice" in argv:
@@ -316,6 +317,10 @@ def main(argv: list[str] | None = None) -> int:
     rng = random.Random()
     profile = Profile()
     day = date.today().toordinal()
+    boss = force_boss or ("--boss" in argv and profile.boss_available())
+    if "--boss" in argv and not boss and not force_boss:
+        print(scr.c("The boss is earned, not summoned. Win 5 straight first.", RED))
+        return 1
 
     scr.clear()
     scr.banner("✦  M I N D   M E L D  ✦")
@@ -395,7 +400,7 @@ def main(argv: list[str] | None = None) -> int:
         if answer.startswith("y"):
             scr.type_out("Think of something NEW. Five questions. No more.", DIM)
             input(scr.c("press enter...", DIM))
-            g_q, g_won, _ = play_round_a(scr, rng, max_questions=5, boss=True)
+            g_q, g_won, _ = play_round_a(scr, rng, max_questions=5, gauntlet=True)
             if g_q is None:
                 print(scr.c("\nThe mist dissipates... (game abandoned)", DIM))
                 return 1

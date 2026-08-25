@@ -58,6 +58,13 @@
   #genie.boss .tail { background: linear-gradient(180deg, #8a1538, transparent 85%); }
   #genie.boss .orb { background: #ff8c42; box-shadow: 0 0 22px #ff8c42; animation: ember .9s infinite; }
   @keyframes ember { 0%,100%{ transform: translateX(-50%) scale(1) } 50%{ transform: translateX(-50%) scale(1.6) } }
+  #genie.charged .head { background: linear-gradient(160deg, var(--gold), #b8860b);
+      box-shadow: 0 0 40px rgba(255,209,102,.55), inset 0 -12px 24px rgba(0,0,0,.28); }
+  #genie.charged .eye::after { background: #3d2b00; }
+  #genie.charged .mouth { border-color: #3d2b00; }
+  #genie.charged .tail { background: linear-gradient(180deg, #b8860b, transparent 85%); }
+  #genie.charged .orb { background: var(--gold); box-shadow: 0 0 18px var(--gold); }
+  #btn-boss.locked { opacity: .45; cursor: not-allowed; }
   .flicker { animation: flick .35s linear; filter: blur(1px); }
   @keyframes flick { 0%{ opacity: .2 } 50%{ opacity: 1 } 100%{ opacity: .35 } }
   #brain-panel { display: none; margin-top: 14px; font-size: 12px; color: var(--cyan);
@@ -162,7 +169,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const say = t => $("say").innerHTML = '<span class="genie-line">' + t + '</span>';
-const genie = mood => { $("genie").className = bossMode ? ("boss " + mood).trim() : mood; };
+const genie = mood => { $("genie").className = bossMode ? ("boss " + mood).trim() : (chargedMode ? ("charged " + mood).trim() : mood); };
 const log = (who, t) => { $("log").innerHTML += '<div class="' + who + '"><b>' + who + ':</b> ' + t + '</div>'; $("log").scrollTop = 1e9; };
 let phase = "idle";
 
@@ -210,10 +217,11 @@ function revealQuestion(t) {
 
 async function handle(res) {
   if (res.boss !== undefined) bossMode = res.boss;
+  if (res.gauntlet !== undefined) chargedMode = res.gauntlet;
   updateCounter(res.state);
   if (res.say) say(res.say);
   if (res.state.phase === "round_a" && res.question && res.event !== "round_b_start") {
-    genie(""); revealQuestion(res.question); show("answer-row");
+    genie(""); $("hunch").style.display = "none"; revealQuestion(res.question); show("answer-row");
   } else if (res.event === "guess") {
     genie(res.boss ? "boss" : "");
     revealQuestion("…");
@@ -275,9 +283,9 @@ $("btn-correct").onclick = () => api({action: "confirm", correct: true}).then(ha
 $("btn-wrong").onclick = () => { genie("shook"); api({action: "confirm", correct: false}).then(handle); };
 $("btn-again").onclick = () => location.reload();
 $("btn-copy").onclick = () => { navigator.clipboard.writeText($("sharecard").textContent); $("btn-copy").textContent = "✓ COPIED"; };
-$("btn-gauntlet").onclick = () => { genie("boss"); api({action: "gauntlet", accept: true}).then(handle); };
+$("btn-gauntlet").onclick = () => { chargedMode = true; genie(""); api({action: "gauntlet", accept: true}).then(handle); };
 $("btn-safe").onclick = () => api({action: "gauntlet", accept: false}).then(handle);
-$("btn-boss").onclick = async () => { $("boss-row").style.display = "none"; genie("boss"); say("NO MORE MR. MIST."); handle(await api({action: "new", mode: "boss"})); };
+$("btn-boss").onclick = async () => { if ($("btn-boss").classList.contains("locked")) { say("The boss is earned, not summoned. Win 5 straight first."); return; } $("boss-row").style.display = "none"; genie("boss"); say("NO MORE MR. MIST."); handle(await api({action: "new", mode: "boss"})); };
 
 fetch("/api/state").then(r => r.json()).then(d => {
   const st = d.state;
@@ -286,12 +294,19 @@ fetch("/api/state").then(r => r.json()).then(d => {
     $("brain-panel").textContent = "🧠 the brain: " + st.brain.params_m + "M params · trained " + st.brain.steps.toLocaleString()
       + " steps at home · loss " + st.brain.loss + " · " + st.brain.brain_mb + "MB fp16 · vocab " + st.brain.vocab;
   }
-  if (st.boss_unlocked) $("boss-row").style.display = "flex";
+  const bb = $("btn-boss");
+  $("boss-row").style.display = "flex";
+  if (st.boss_unlocked) {
+    bb.classList.remove("locked"); bb.textContent = "👹 GENIE UNLEASHED (boss)";
+  } else {
+    bb.classList.add("locked"); bb.textContent = "👹 ??? — win 5 straight to unleash";
+  }
 });
 
 let lastAsk = "";
 let learnMode = false;
 let bossMode = false;
+let chargedMode = false;
 if (location.search.includes("autostart")) window.addEventListener("load", async () => {
   $("btn-start").click();
   const m = location.search.match(/seq=([^&]+)/);
