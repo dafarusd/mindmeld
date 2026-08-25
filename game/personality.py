@@ -8,7 +8,7 @@ output fails validation, these lines are what the player hears.
 import random
 
 INTROS = [
-    "I am MIND MELD, reader of thoughts, keeper of the 325. Think of something... I dare you.",
+    "I am MIND MELD, reader of thoughts, keeper of the hundreds. Think of something... I dare you.",
     "Ah, a fresh mind to read. Think of a thing — any thing — and keep it secret. Keep it safe.",
     "The mists part. A challenger approaches. Think of something, mortal.",
 ]
@@ -90,6 +90,54 @@ ANSWER_MAYBE = [
 
 HUNCH_AGREE = "The brain and the mist agree."
 HUNCH_LABEL = "the brain's hunch"
+
+GRUDGE_OPENERS = [
+    "Back again? You still owe me for '{name}'.",
+    "I have not forgotten '{name}'. I dream about it now.",
+    "Ah. The one who stumped me with '{name}'. Today I am prepared.",
+]
+
+STREAK_TAUNTS = [
+    "Three straight readings. The mist grows confident.",
+    "You return for another lesson? Admirable.",
+    "Your thoughts and mine are becoming... well-acquainted.",
+]
+
+REVENGE_SENSE = [
+    "This feels... familiar. Suspiciously familiar.",
+    "Wait. I know this pattern. I've been burned by it before.",
+]
+
+TAUGHT_GLOAT = [
+    "You taught me this one yourself. Sweet of you.",
+    "I learned this from a challenger. It may have been you.",
+]
+
+GAUNTLET_OFFER = [
+    "Double or nothing: I read your NEXT thought in five questions. Win, and today's streak counts double. Dare you?",
+    "A wager: five questions, one thought. Double streak if you survive. Accept?",
+]
+
+GAUNTLET_WON = [
+    "FIVE questions. As promised. The mist does not bluff about power.",
+]
+
+GAUNTLET_LOST = [
+    "Five was not enough. You survive — and the streak doubles. Well fought.",
+]
+
+BOSS_INTRO = [
+    "You have won five straight. Very well. NO MORE MR. MIST.",
+    "The gloves come off. The mist uncoils. NINE questions. Tremble.",
+]
+
+BOSS_LOSES = [
+    "You... survived the Unleashed form? That is not supposed to happen.",
+]
+
+BOSS_WINS = [
+    "The Unleashed form remains undefeated. As foretold.",
+]
 
 def pick(rng: random.Random, options: list[str]) -> str:
     return rng.choice(options)

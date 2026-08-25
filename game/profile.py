@@ -23,6 +23,7 @@ ACHIEVEMENTS = {
     "on_fire": "On Fire — 5-day streak",
     "teacher": "Teacher — the genie learned something from you",
     "hard_winner": "Storm Survivor — win a meld on hard mode",
+    "boss_slayer": "Boss Slayer — survive the Unleashed genie",
 }
 
 
@@ -38,6 +39,9 @@ class Profile:
         self.last_daily_day: int | None = None
         self.achievements: list[str] = []
         self.learned_count = 0
+        self.stumps: list[dict] = []
+        self.last_results: list[bool] = []
+        self.boss_unlocked_seen = False
         self.load()
 
     def load(self) -> None:
@@ -48,7 +52,8 @@ class Profile:
         except (json.JSONDecodeError, OSError):
             return
         for key in ("games_played", "wins", "losses", "draws", "current_streak", "best_streak",
-                    "last_daily_day", "achievements", "learned_count"):
+                    "last_daily_day", "achievements", "learned_count", "stumps", "last_results",
+                    "boss_unlocked_seen"):
             if key in data:
                 setattr(self, key, data[key])
 
@@ -67,7 +72,38 @@ class Profile:
             "last_daily_day": self.last_daily_day,
             "achievements": self.achievements,
             "learned_count": self.learned_count,
+            "stumps": self.stumps,
+            "last_results": self.last_results,
+            "boss_unlocked_seen": self.boss_unlocked_seen,
         }
+
+    def boss_available(self) -> bool:
+        return self.current_streak >= 5
+
+    def remember_stump(self, name: str) -> None:
+        from datetime import date
+
+        self.stumps.append({"name": name, "day": date.today().toordinal()})
+        self.stumps = self.stumps[-50:]
+        self.learned_count += 1
+        self.save()
+
+    def recent_stumps(self, limit: int = 3) -> list[str]:
+        return [s["name"] for s in self.stumps[-limit:]]
+
+    def push_result(self, ai_won: bool) -> None:
+        self.last_results.append(ai_won)
+        self.last_results = self.last_results[-10:]
+        self.save()
+
+    def loss_run(self) -> int:
+        n = 0
+        for won in reversed(self.last_results):
+            if won:
+                n += 1
+            else:
+                break
+        return n
 
     def rank(self) -> str:
         for threshold, name in RANKS:
@@ -80,7 +116,7 @@ class Profile:
             self.achievements.append(key)
             newly.append(key)
 
-    def register_game(self, ai_won: bool, ai_q: int | None, you_won: bool, you_q: int | None, hard: bool = False, learned_new: bool = False) -> list[str]:
+    def register_game(self, ai_won: bool, ai_q: int | None, you_won: bool, you_q: int | None, hard: bool = False, learned_new: bool = False, boss: bool = False) -> list[str]:
         """Record a finished duel. Returns newly unlocked achievement keys."""
         newly: list[str] = []
         you_beat_it = you_won and (not ai_won or (you_q or 99) <= (ai_q or 99))
@@ -88,6 +124,8 @@ class Profile:
             self._unlock("first_blood", newly)
             if hard:
                 self._unlock("hard_winner", newly)
+        if boss and not ai_won:
+            self._unlock("boss_slayer", newly)
         if you_won and you_q is not None and you_q <= 6:
             self._unlock("surgical", newly)
         if not ai_won:
@@ -122,6 +160,12 @@ class Profile:
             self.wins += 1
         else:
             self.losses += 1
+        self.save()
+
+    def bonus_streak(self) -> None:
+        """Gauntlet reward: today's win counts double."""
+        self.current_streak += 1
+        self.best_streak = max(self.best_streak, self.current_streak)
         self.save()
 
     def already_played_today(self) -> bool:

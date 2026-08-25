@@ -113,3 +113,46 @@ a secret cleverly; really it was a lookup table. Fixed by making it play:
 - Content batch: 325 → **386 entities**; self-play 94.8% @ median 10q
   (gate ≥90% holds).
 - Tests: 50 total, all green.
+
+## 2026-08-25 — v1.4: "The Genie Is Real"
+
+Second research pass (Password Game, Connections) added: difficulty-as-
+content, deliberate misdirection, special-event days, progress-as-status.
+User directive: lean into the AI as the star; always reveal on a loss;
+the boss gets its own image.
+
+- **Grudge memory**: profile now remembers stumps and result history.
+  The genie opens with references ("I have not forgotten 'test boss
+  thing'. I dream about it now."), taunts 3+ domination streaks, and
+  mid-round senses revenge when your answers resemble a past stump
+  ("This feels... familiar."). Taught entities get gloating credit in
+  Round 2. Nobody else can do this — it only works because the genie is
+  local and persistent.
+- **Flickering candidates**: before each Round 1 reveal, the mist cycles
+  its top-3 suspects ("... a dog? ... a cat?") then lands. Browser:
+  blur-cycle animation; terminal: dim type-outs that erase.
+- **Calendar event days** (deterministic, same on every machine):
+  Friday the 13th → genie lies TWICE (two bluff attributes); Halloween →
+  secrets drawn from monsters/villains only; April 1st → Opposite Day
+  (first three Round-2 answers inverted, announced up front).
+- **The Gauntlet**: after a Round-1 read, double-or-nothing — "I read
+  your NEXT thought in FIVE questions. Win and today's streak counts
+  double." Boss-gated engine config; bonus streak recorded exactly once.
+- **Boss mode — Genie Unleashed**: unlocks at 5-win streak. 9 questions,
+  aggressive guess threshold — measured 81% win rate for the genie
+  (terrifying but beatable; test-gated ≥75%). New look per request:
+  crimson/ember palette, slanted angry eyes, pulsing ember orb in the
+  browser; a slanted-eyes `(>)(<)` ASCII variant in red for the terminal.
+  Achievement: Boss Slayer.
+- **Lean into the AI**: Brain's Hunch fires on every guess with an
+  agreement tally; a live "🧠 the brain" panel shows real numbers from
+  the training artifacts (26M params · 14.4k steps · loss 0.139 · 53.6MB
+  fp16 · vocab 1500); share cards carry the home-trained footer.
+- **Always reveal**: quitting Round 2 mid-game now reveals the secret
+  ("You flee the mist. Very well — the secret was CHICKEN.") plus any
+  bluff confession. Timeout and loss paths were audited — every hidden
+  answer is always disclosed at the end.
+- Bugs found by screenshot/playthrough: boss look was wiped on game start
+  (genie helper now boss-aware); boss counter said "of 20" (state now
+  carries the session's question cap).
+- Tests: 62 total, all green.

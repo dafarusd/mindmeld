@@ -50,6 +50,7 @@ def _h_from_weights(ws: list[float]) -> float:
 class MindReader:
     rng: random.Random = field(default_factory=random.Random)
     max_questions: int = MAX_QUESTIONS
+    boss: bool = False
     weights: dict[str, float] = field(default_factory=lambda: {n: 1.0 for n in kb.ENTITY_NAMES})
     asked: list[str] = field(default_factory=list)
     answers: list[tuple[str, float]] = field(default_factory=list)
@@ -121,6 +122,9 @@ class MindReader:
         total = sum(self.weights.values())
         return self.weights[self.best_candidate()] / total if total else 0.0
 
+    def top_candidates(self, n: int = 3) -> list[str]:
+        return [name for name, _ in self._ranked()[:n]]
+
     def _ranked(self) -> list[tuple[str, float]]:
         return sorted(self.weights.items(), key=lambda kv: kv[1], reverse=True)
 
@@ -132,7 +136,10 @@ class MindReader:
         if len(ranked) < 2:
             return True
         top, runner_up = ranked[0][1], ranked[1][1]
-        ratio_gate = 1.6 if self.max_questions <= 10 else 2.0
+        if self.boss:
+            ratio_gate = 1.3
+        else:
+            ratio_gate = 1.6 if self.max_questions <= 10 else 2.0
         if asked >= 4 and runner_up > 0 and top / runner_up >= ratio_gate:
             return True
         if asked >= 5 and self.top_share() >= 0.30:
@@ -287,17 +294,22 @@ class SecretKeeper:
     secret: str
     rng: random.Random = field(default_factory=random.Random)
     bluff: bool = True
+    bluff_count: int = 1
+    invert_first_n: int = 0
     questions_asked: int = 0
     solved: bool = False
-    bluff_attr: str | None = None
+    bluff_attrs: list[str] = field(default_factory=list)
     bluff_used: bool = False
 
     def __post_init__(self):
         if self.bluff:
             vec = ENTITIES[self.secret]["vec"]
             candidates = [a for a in ATTRIBUTES if vec[a] != 0.5]
-            if candidates:
-                self.bluff_attr = self.rng.choice(candidates)
+            self.bluff_attrs = self.rng.sample(candidates, min(self.bluff_count, len(candidates)))
+
+    @property
+    def bluff_attr(self) -> str | None:
+        return self.bluff_attrs[0] if self.bluff_attrs else None
 
     def answer_question(self, text: str) -> tuple[str, str]:
         self.questions_asked += 1
@@ -305,8 +317,10 @@ class SecretKeeper:
         if attr is None:
             return "unknown", "The spirits cannot parse that question. Ask about a trait — alive? animal? metal? famous?"
         v = ENTITIES[self.secret]["vec"][attr]
-        if attr == self.bluff_attr:
+        if attr in self.bluff_attrs:
             self.bluff_used = True
+            v = {YES: NO, NO: YES}.get(v, v)
+        if self.questions_asked <= self.invert_first_n:
             v = {YES: NO, NO: YES}.get(v, v)
         if v == YES:
             return "yes", "Yes."
@@ -330,9 +344,11 @@ class SecretKeeper:
     def bluff_disclosure(self) -> str | None:
         if not self.bluff:
             return None
-        if self.bluff_used and self.bluff_attr:
-            q = QUESTIONS[self.bluff_attr][0]
-            return f"(confession: I lied once — when you asked about '{q.rstrip('?').lower()}')"
+        if self.bluff_used and self.bluff_attrs:
+            used = [QUESTIONS[a][0].rstrip("?").lower() for a in self.bluff_attrs]
+            n = len(self.bluff_attrs)
+            lie_word = "lied once" if n == 1 else f"lied {n} times"
+            return f"(confession: I {lie_word} — about: {', '.join(used)})"
         return None
         if t == secret or (len(t) >= 4 and (t in secret or secret in t)):
             self.solved = True
@@ -347,17 +363,43 @@ WEEKDAY_THEMES = {
 }
 
 
+def event_for_date(day_ordinal: int) -> dict | None:
+    """Special calendar rules. Deterministic — same on every machine."""
+    from datetime import date as _date
+
+    d = _date.fromordinal(day_ordinal)
+    if d.month == 4 and d.day == 1:
+        return {"key": "opposite_day", "name": "🃏 Opposite Day",
+                "intro": "Today is Opposite Day. My first three answers will be exactly backwards. Good luck.",
+                "invert_first_n": 3}
+    if d.month == 10 and d.day == 31:
+        return {"key": "halloween", "name": "🎃 Halloween",
+                "intro": "Tonight the mist holds only monsters and villains.",
+                "pool": lambda e: e["vec"]["is_villain"] == YES or e["vec"]["is_dangerous"] == YES or e["vec"]["is_mythological"] == YES}
+    if d.weekday() == 4 and d.day == 13:
+        return {"key": "friday13", "name": "🔪 Friday the 13th",
+                "intro": "Friday the 13th. The genie lies TWICE today.",
+                "bluff_count": 2}
+    return None
+
+
 def daily_info(day_ordinal: int) -> tuple[str, str | None]:
     from datetime import date as _date
 
     weekday = _date.fromordinal(day_ordinal).weekday()
     theme = WEEKDAY_THEMES.get(weekday)
-    pool = [n for n in ENTITY_NAMES if theme[1](ENTITIES[n])] if theme else list(ENTITY_NAMES)
+    event = event_for_date(day_ordinal)
+    pool = list(ENTITY_NAMES)
+    if event and "pool" in event:
+        pool = [n for n in pool if event["pool"](ENTITIES[n])]
+    elif theme:
+        pool = [n for n in pool if theme[1](ENTITIES[n])]
     if not pool:
         pool = list(ENTITY_NAMES)
     digest = hashlib.sha256(f"mindmeld-{day_ordinal}".encode()).hexdigest()
     secret = sorted(pool)[int(digest, 16) % len(pool)]
-    return secret, (theme[0] if theme else None)
+    label = (event["name"] if event else None) or (theme[0] if theme else None)
+    return secret, label
 
 
 def daily_secret(day_ordinal: int) -> str:

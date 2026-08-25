@@ -10,9 +10,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import voice
-from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_info, share_card
+from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_info, event_for_date, share_card
 from .kb import ENTITIES
-from .personality import BLUFF_RULE, INTROS, INTROS_DAILY, pick
+from .personality import BLUFF_RULE, BOSS_INTRO, GAUNTLET_OFFER, GRUDGE_OPENERS, INTROS, INTROS_DAILY, pick
 from .profile import Profile
 from .questions import QUESTIONS
 
@@ -45,9 +45,37 @@ class Session:
         self.secret = secret if mode == "daily" else None
         self.theme = theme if mode == "daily" else None
         self.learned_new = False
+        self.event = event_for_date(self.day) if mode == "daily" else None
+        self.gauntlet_won = False
 
 
 SESSION = Session()
+
+
+def brain_stats() -> dict | None:
+    """Live numbers from the actual training artifacts — the watch-it-learn panel."""
+    import json as _json
+
+    ckpt = ROOT / "ckpt"
+    log = ckpt / "train_log.jsonl"
+    if not log.exists():
+        return None
+    try:
+        lines = log.read_text(encoding="utf-8").strip().splitlines()
+        if not lines:
+            return None
+        last = _json.loads(lines[-1])
+        blob = ckpt / "brain.fp16.pt"
+        size_mb = round(blob.stat().st_size / 1e6, 1) if blob.exists() else None
+        return {
+            "params_m": 26.0,
+            "steps": last.get("step"),
+            "loss": last.get("loss"),
+            "brain_mb": size_mb,
+            "vocab": 1500,
+        }
+    except Exception:
+        return None
 
 
 def _state(profile: Profile) -> dict:
@@ -56,7 +84,7 @@ def _state(profile: Profile) -> dict:
         "phase": s.phase,
         "mode": s.mode,
         "questions_asked": len(s.mr.asked) if s.mr else 0,
-        "max_questions": MAX_QUESTIONS,
+        "max_questions": s.mr.max_questions if s.mr else MAX_QUESTIONS,
         "guesses_made": len(s.mr.guesses_made) if s.mr else 0,
         "round_b_asked": s.keeper.questions_asked if s.keeper else 0,
         "ai_q": s.ai_q,
@@ -68,6 +96,9 @@ def _state(profile: Profile) -> dict:
         "bluff_disclosure": s.keeper.bluff_disclosure() if (s.keeper and s.phase == "done") else None,
         "new_achievements": getattr(s, "new_achievements", []) if s.phase == "done" else [],
         "profile": profile.summary(),
+        "boss_unlocked": profile.boss_available(),
+        "gauntlet_won": s.gauntlet_won,
+        "brain": brain_stats(),
         "streak": profile.current_streak,
         "played_today": profile.already_played_today(),
     }
@@ -83,12 +114,24 @@ def handle(body: dict, profile: Profile) -> dict:
             mode = "free"
         s.reset(mode)
         s.phase = "round_a"
-        s.mr = MindReader(rng=s.rng, max_questions=10 if mode == "hard" else MAX_QUESTIONS)
+        if mode == "boss" and not profile.boss_available():
+            mode = "free"
+        s.mode = mode
+        s.mr = MindReader(rng=s.rng,
+                          max_questions=(9 if mode == "boss" else (10 if mode == "hard" else MAX_QUESTIONS)),
+                          boss=(mode == "boss"))
         intro = pick(s.rng, INTROS_DAILY if s.mode == "daily" else INTROS)
         attr = s.mr.next_question()
         s.pending_attr = attr
         say = intro + " But FIRST — I will read YOUR mind. Think of an animal, object, food, famous person, or character. Lock it in. Then answer my questions below."
-        return {"say": say, "event": "round_a_start", "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile)}
+        if s.event:
+            say += " " + s.event["intro"]
+        if mode == "boss":
+            say = pick(s.rng, BOSS_INTRO) + " " + say
+        if profile.stumps:
+            say = pick(s.rng, GRUDGE_OPENERS).format(name=profile.recent_stumps(1)[0]) + " " + say
+        return {"say": say, "event": "round_a_start", "question": s.rng.choice(QUESTIONS[attr]),
+                "candidates": s.mr.top_candidates(3), "boss": mode == "boss", "state": _state(profile)}
 
     if action == "answer" and s.phase == "round_a" and s.mr and s.pending_guess is None:
         value = {"yes": 1.0, "no": 0.0, "maybe": 0.5}[body["answer"]]
@@ -99,13 +142,34 @@ def handle(body: dict, profile: Profile) -> dict:
             if voice.brain_available():
                 transcript = [f"Q: {QUESTIONS[a][0]} A: {ANSWER_WORD[v]}" for a, v in s.mr.answers]
                 hunch = voice.hunch(transcript)
-            return {"event": "guess", "guess": s.pending_guess, "hunch": hunch, "state": _state(profile)}
+            return {"event": "guess", "guess": s.pending_guess, "hunch": hunch,
+                    "candidates": s.mr.top_candidates(3), "boss": s.mode == "boss", "state": _state(profile)}
         attr = s.mr.next_question()
         if attr is None:
             s.pending_guess = s.mr.best_candidate()
-            return {"event": "guess", "guess": s.pending_guess, "hunch": None, "state": _state(profile)}
+            return {"event": "guess", "guess": s.pending_guess, "hunch": None,
+                    "candidates": s.mr.top_candidates(3), "boss": s.mode == "boss", "state": _state(profile)}
         s.pending_attr = attr
         return {"event": "question", "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile)}
+
+    if action == "confirm" and s.phase == "round_a" and s.pending_guess and getattr(s, "gauntlet_active", False):
+        correct = bool(body.get("correct"))
+        s.gauntlet_active = False
+        if correct:
+            s.gauntlet_won = False
+            say = "Read you in five. The wager is mine."
+        else:
+            s.mr.confirm_guess(False)
+            if len(s.mr.guesses_made) >= 2 or s.mr.questions_left() <= 0:
+                s.gauntlet_won = True
+                say = "Five was not enough. You survive — the streak doubles."
+            else:
+                s.pending_guess = s.mr.guess()
+                s.gauntlet_active = True
+                return {"event": "guess", "guess": s.pending_guess, "hunch": None,
+                        "candidates": s.mr.top_candidates(3), "boss": True, "state": _state(profile)}
+        _begin_round_b(s)
+        return {"event": "round_b_start", "say": say, "state": _state(profile)}
 
     if action == "confirm" and s.phase == "round_a" and s.pending_guess:
         correct = bool(body.get("correct"))
@@ -113,6 +177,9 @@ def handle(body: dict, profile: Profile) -> dict:
             s.ai_q = len(s.mr.asked)
             s.ai_won = True
             say = voice.banter("correct guess", s.rng) + " " + voice.banter("ai wins", s.rng)
+            if s.mode == "daily" and not s.gauntlet_won:
+                return {"event": "gauntlet_offer", "say": say, "blurb": ENTITIES[s.pending_guess]["blurb"],
+                        "offer": pick(s.rng, GAUNTLET_OFFER), "state": _state(profile)}
             _begin_round_b(s)
             return {"event": "round_b_start", "say": say, "blurb": ENTITIES[s.pending_guess]["blurb"], "state": _state(profile)}
         say = voice.banter("wrong guess", s.rng)
@@ -128,6 +195,20 @@ def handle(body: dict, profile: Profile) -> dict:
             return {"event": "guess", "guess": s.pending_guess, "hunch": None, "say": say, "state": _state(profile)}
         s.pending_attr = attr
         return {"event": "question", "say": say, "question": s.rng.choice(QUESTIONS[attr]), "state": _state(profile)}
+
+    if action == "gauntlet" and s.phase == "round_a" and s.ai_won:
+        if body.get("accept"):
+            s.mr = MindReader(rng=s.rng, max_questions=5, boss=True)
+            s.gauntlet_active = True
+            s.pending_attr = None
+            s.pending_guess = None
+            attr = s.mr.next_question()
+            s.pending_attr = attr
+            return {"event": "round_a_start", "say": "Think of something NEW. Five questions. No mercy.",
+                    "question": s.rng.choice(QUESTIONS[attr]), "candidates": s.mr.top_candidates(3),
+                    "boss": True, "gauntlet": True, "state": _state(profile)}
+        _begin_round_b(s)
+        return {"event": "round_b_start", "say": "Wise. The mist respects caution.", "state": _state(profile)}
 
     if action == "learn" and s.phase == "round_a" and s.mr is not None:
         note = "Another secret kept... for now."
@@ -176,7 +257,10 @@ def handle(body: dict, profile: Profile) -> dict:
 def _begin_round_b(s: Session) -> None:
     s.phase = "round_b"
     s.secret = s.secret or pick(s.rng, list(ENTITIES.keys()))
-    s.keeper = SecretKeeper(secret=s.secret, rng=s.rng, bluff=True)
+    bluff_count = s.event.get("bluff_count", 1) if s.event else 1
+    invert_n = s.event.get("invert_first_n", 0) if s.event else 0
+    s.keeper = SecretKeeper(secret=s.secret, rng=s.rng, bluff=True,
+                            bluff_count=bluff_count, invert_first_n=invert_n)
 
 
 def _finish(s: Session, profile: Profile, you_won: bool, you_q: int) -> None:
@@ -186,8 +270,11 @@ def _finish(s: Session, profile: Profile, you_won: bool, you_q: int) -> None:
     you_beat_it = you_won and (not s.ai_won or (you_q or 99) <= (s.ai_q or 99))
     if s.mode == "daily":
         profile.record_daily(s.day, you_beat_it)
+        if you_beat_it and s.gauntlet_won:
+            profile.bonus_streak()
     else:
         profile.record_freeplay(you_beat_it)
+    profile.push_result(s.ai_won)
     newly = profile.register_game(s.ai_won, s.ai_q, you_won, you_q,
                                   hard=(s.mode == "hard"), learned_new=s.learned_new)
     if newly:

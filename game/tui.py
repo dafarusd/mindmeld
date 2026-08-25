@@ -9,15 +9,24 @@ import time
 from datetime import date
 
 from . import voice
-from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_info, parse_answer, share_card
+from .engine import MAX_QUESTIONS, MindReader, SecretKeeper, daily_info, event_for_date, parse_answer, share_card
 from .kb import ENTITIES
 from .personality import (
     BLUFF_RULE,
+    BOSS_INTRO,
+    BOSS_LOSES,
+    BOSS_WINS,
+    GAUNTLET_LOST,
+    GAUNTLET_OFFER,
+    GAUNTLET_WON,
+    GRUDGE_OPENERS,
     HUNCH_AGREE,
     HUNCH_LABEL,
     INTROS,
     INTROS_DAILY,
+    REVENGE_SENSE,
     SECRET_PICKED,
+    STREAK_TAUNTS,
     THINKING,
     pick,
     rephrase_question,
@@ -53,6 +62,8 @@ GENIE_IDLE = r'''
 GENIE_HAPPY = GENIE_IDLE.replace("(o)(o)", "(^)(^)")
 GENIE_SHOOK = GENIE_IDLE.replace("(o)(o)", "(O)(O)").replace("'--'", ".__.")
 GENIE_THINKING = GENIE_IDLE.replace("(o)(o)", "(-)(-)")
+GENIE_BOSS = GENIE_IDLE.replace("(o)(o)", "(>)(<)").replace("'--'", "'^^'")
+GENIE_BOSS_THINKING = GENIE_BOSS.replace("(>)(<)", "(>)(>)")
 
 
 def supports_color() -> bool:
@@ -90,9 +101,11 @@ class Screen:
             print(self.c(text, code))
 
     def genie(self, mood: str = "idle") -> None:
-        art = {"idle": GENIE_IDLE, "happy": GENIE_HAPPY, "shook": GENIE_SHOOK, "thinking": GENIE_THINKING}[mood]
+        art = {"idle": GENIE_IDLE, "happy": GENIE_HAPPY, "shook": GENIE_SHOOK,
+               "thinking": GENIE_THINKING, "boss": GENIE_BOSS, "boss_thinking": GENIE_BOSS_THINKING}[mood]
+        color = RED if mood.startswith("boss") else PURPLE
         for line in art.splitlines():
-            print(self.c(line, PURPLE))
+            print(self.c(line, color))
 
     def thinking(self, rng: random.Random) -> None:
         if not (self.animate and self.color):
@@ -136,8 +149,10 @@ def mist_bar(share: float, width: int = 16) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
-def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUESTIONS) -> tuple[int | None, bool, MindReader]:
-    mr = MindReader(rng=rng, max_questions=max_questions)
+def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUESTIONS, boss: bool = False, stumps: list | None = None) -> tuple[int | None, bool, MindReader]:
+    mr = MindReader(rng=rng, max_questions=max_questions, boss=boss)
+    stump_names = {s["name"] for s in (stumps or [])}
+    revenge_said = False
     scr.type_out(f"Answer with yes / no / maybe. I give you up to {max_questions} questions.", DIM)
     print()
     while True:
@@ -145,10 +160,12 @@ def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUEST
         if attr is None:
             while len(mr.guesses_made) < 3:
                 mr.guess()
-                q, won = finish_guess(scr, mr, mr.guesses_made[-1])
+                q, won = finish_guess(scr, mr, mr.guesses_made[-1], boss=boss)
                 if won or q is None:
                     return q, won, mr
             return len(mr.asked), False, mr
+        if boss:
+            scr.genie("boss_thinking")
         scr.thinking(rng)
         qnum = len(mr.asked) + 1
         question = rephrase_question(rng, rng.choice(QUESTIONS[attr]))
@@ -162,26 +179,38 @@ def play_round_a(scr: Screen, rng: random.Random, max_questions: int = MAX_QUEST
             continue
         mr.answer(attr, value)
         share = mr.top_share()
-        print(scr.c(f"    mist: {mist_bar(share)} {share*100:.0f}%", PURPLE))
+        print(scr.c(f"    mist: {mist_bar(share)} {share*100:.0f}%", RED if boss else PURPLE))
+        if not revenge_said and stump_names and len(mr.asked) >= 3:
+            if stump_names & set(mr.top_candidates(3)):
+                scr.type_out(pick(rng, REVENGE_SENSE), GOLD)
+                revenge_said = True
         if mr.should_guess():
             guess = mr.guess()
-            correct, won = finish_guess(scr, mr, guess)
+            correct, won = finish_guess(scr, mr, guess, boss=boss)
             if won:
                 return correct, True, mr
             if len(mr.guesses_made) >= 3:
                 return len(mr.asked), False, mr
 
 
-def finish_guess(scr: Screen, mr: MindReader, guess: str) -> tuple[int | None, bool]:
+def finish_guess(scr: Screen, mr: MindReader, guess: str, boss: bool = False) -> tuple[int | None, bool]:
     print()
-    scr.genie("thinking")
+    scr.genie("boss_thinking" if boss else "thinking")
+    if scr.animate and scr.color:
+        for candidate in mr.top_candidates(3):
+            if candidate != guess:
+                sys.stdout.write(DIM + f"   ... {candidate}?" + RESET)
+                sys.stdout.flush()
+                time.sleep(0.5)
+                sys.stdout.write("\r" + " " * 40 + "\r")
+                sys.stdout.flush()
     scr.type_out(f"I see it forming... it's...", GOLD, delay=0.03)
     hunch_line = None
     if voice.brain_available():
         transcript = [f"Q: {QUESTIONS[attr][0]} A: {ANSWER_WORD[value]}" for attr, value in mr.answers]
         hunch_line = voice.hunch(transcript)
     time.sleep(0.4 if scr.animate else 0)
-    scr.type_out(f"   ✦ {guess.upper()} ✦", PURPLE + BOLD, delay=0.04)
+    scr.type_out(f"   ✦ {guess.upper()} ✦", (RED + BOLD) if boss else (PURPLE + BOLD), delay=0.04)
     if hunch_line:
         if hunch_line.lower() == guess.lower():
             scr.type_out(f"   🧠 {HUNCH_AGREE}", CYAN)
@@ -202,11 +231,19 @@ def finish_guess(scr: Screen, mr: MindReader, guess: str) -> tuple[int | None, b
     return len(mr.asked), False
 
 
-def play_round_b(scr: Screen, rng: random.Random, secret: str, bluff: bool = True) -> tuple[int | None, bool]:
-    keeper = SecretKeeper(secret=secret, rng=rng, bluff=bluff)
+def play_round_b(scr: Screen, rng: random.Random, secret: str, bluff: bool = True, bluff_count: int = 1, invert_first_n: int = 0) -> tuple[int | None, bool]:
+    keeper = SecretKeeper(secret=secret, rng=rng, bluff=bluff, bluff_count=bluff_count, invert_first_n=invert_first_n)
     scr.type_out(pick(rng, SECRET_PICKED), PURPLE)
     if bluff:
-        scr.type_out(BLUFF_RULE, GOLD)
+        n = len(keeper.bluff_attrs)
+        if invert_first_n:
+            pass
+        elif n > 1:
+            scr.type_out(f"One rule: today I may lie {n} times. Catch me if you can.", GOLD)
+        else:
+            scr.type_out(BLUFF_RULE, GOLD)
+    if invert_first_n:
+        scr.type_out("And remember — Opposite Day: my first three answers are backwards.", GOLD)
     scr.type_out("Ask me anything about a trait ('is it alive?'), or type your guess.", DIM)
     print()
     while keeper.questions_asked < MAX_QUESTIONS and not keeper.solved:
@@ -214,11 +251,15 @@ def play_round_b(scr: Screen, rng: random.Random, secret: str, bluff: bool = Tru
         try:
             raw = input(scr.c(f"[{left:>2} left] you: ", CYAN))
         except (EOFError, KeyboardInterrupt):
-            return None, False
+            raw = "q"
         raw = raw.strip()
         if not raw:
             continue
         if raw.lower() in {"q", "quit", "exit"}:
+            scr.type_out(f"You flee the mist. Very well — the secret was {secret.upper()}.", DIM)
+            disclosure = keeper.bluff_disclosure()
+            if disclosure:
+                scr.type_out(disclosure, DIM)
             return None, False
         lowered = raw.lower().removeprefix("is it ").removesuffix("?").strip()
         looks_like_guess = (
@@ -266,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
     daily = "--daily" in argv or not argv
     no_anim = "--no-anim" in argv
     hard = "--hard" in argv
+    boss = "--boss" in argv
     if "--brain-voice" in argv:
         voice.set_enabled(True)
     if "--no-brain-voice" in argv:
@@ -285,18 +327,37 @@ def main(argv: list[str] | None = None) -> int:
         scr.type_out("(Play anyway with --free)", DIM)
         return 0
     secret, theme = daily_info(day) if daily else (None, None)
+    event = event_for_date(day) if daily else None
     if daily:
         intro = pick(rng, INTROS_DAILY)
         if theme:
             intro += f" Today is {theme}."
+        if event:
+            intro += " " + event["intro"]
         scr.type_out(intro, PURPLE)
     else:
         scr.type_out(pick(rng, INTROS), PURPLE)
+    if profile.stumps:
+        scr.type_out(pick(rng, GRUDGE_OPENERS).format(name=profile.recent_stumps(1)[0]), GOLD)
+    elif profile.loss_run() >= 3:
+        scr.type_out(pick(rng, STREAK_TAUNTS), GOLD)
+
+    if profile.boss_available() and not boss and not daily:
+        try:
+            answer = input(scr.c("The mist senses your streak. Unleash the BOSS? (y/n): ", RED)).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = ""
+        if answer.startswith("y"):
+            boss = True
+    if boss:
+        scr.genie("boss")
+        scr.type_out(pick(rng, BOSS_INTRO), RED)
     print()
 
     scr.type_out("ROUND ONE — I read YOUR mind. Think of an animal, object, person, or character.", BOLD)
     input(scr.c("Press enter when you have it...", DIM))
-    ai_q, ai_won, mr = play_round_a(scr, rng, max_questions=10 if hard else MAX_QUESTIONS)
+    max_q = 9 if boss else (10 if hard else MAX_QUESTIONS)
+    ai_q, ai_won, mr = play_round_a(scr, rng, max_questions=max_q, boss=boss, stumps=profile.stumps)
     if ai_q is None:
         print(scr.c("\nThe mist dissipates... (game abandoned)", DIM))
         return 1
@@ -317,10 +378,33 @@ def main(argv: list[str] | None = None) -> int:
                 clean = learn(name, mr.answers)
                 _kb.reload()
                 learned_new = True
+                profile.remember_stump(clean)
                 scr.type_out(f"'{clean}' — etched into my mind. Forever.", GREEN)
             except LearnError as exc:
                 scr.type_out(str(exc), RED)
-    if ai_won:
+
+    gauntlet_won = False
+    if ai_won and daily and not boss:
+        scr.type_out(voice.banter("ai wins", rng), GREEN)
+        print()
+        scr.type_out(pick(rng, GAUNTLET_OFFER), RED)
+        try:
+            answer = input(scr.c("accept the gauntlet? (y/n): ", GOLD)).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = ""
+        if answer.startswith("y"):
+            scr.type_out("Think of something NEW. Five questions. No more.", DIM)
+            input(scr.c("press enter...", DIM))
+            g_q, g_won, _ = play_round_a(scr, rng, max_questions=5, boss=True)
+            if g_q is None:
+                print(scr.c("\nThe mist dissipates... (game abandoned)", DIM))
+                return 1
+            if g_won:
+                scr.type_out(pick(rng, GAUNTLET_WON), RED)
+            else:
+                gauntlet_won = True
+                scr.type_out(pick(rng, GAUNTLET_LOST), GREEN)
+    elif ai_won:
         scr.type_out(voice.banter("ai wins", rng), GREEN)
     else:
         scr.type_out(voice.banter("ai loses", rng), GOLD)
@@ -328,7 +412,15 @@ def main(argv: list[str] | None = None) -> int:
     print()
     scr.type_out("ROUND TWO — now YOU read MY mind.", BOLD)
     secret = secret or pick(rng, list(ENTITIES.keys()))
-    you_q, you_won = play_round_b(scr, rng, secret)
+    bluff_count = event.get("bluff_count", 1) if event else 1
+    invert_n = event.get("invert_first_n", 0) if event else 0
+    you_q, you_won = play_round_b(scr, rng, secret, bluff_count=bluff_count, invert_first_n=invert_n)
+
+    if boss:
+        if ai_won:
+            scr.type_out(pick(rng, BOSS_WINS), RED)
+        else:
+            scr.type_out(pick(rng, BOSS_LOSES), GOLD)
 
     print()
     card = share_card(day % 1000, ai_q, ai_won, you_q, you_won, theme=theme if daily else None, rank=profile.rank())
@@ -340,13 +432,17 @@ def main(argv: list[str] | None = None) -> int:
     elif ai_won and not you_won:
         scr.type_out(voice.banter("ai wins duel", rng), RED)
 
+    profile.push_result(ai_won)
     if daily:
         profile.record_daily(day, you_beat_it)
+        if you_beat_it and gauntlet_won:
+            profile.bonus_streak()
+            scr.type_out("Gauntlet survived — today's streak counts DOUBLE.", GOLD)
     else:
         profile.record_freeplay(you_beat_it)
     from .profile import ACHIEVEMENTS
 
-    newly = profile.register_game(ai_won, ai_q, you_won, you_q, hard=hard, learned_new=learned_new)
+    newly = profile.register_game(ai_won, ai_q, you_won, you_q, hard=hard, learned_new=learned_new, boss=boss)
     for key in newly:
         scr.type_out(f"  🏆 achievement unlocked: {ACHIEVEMENTS[key]}", GOLD)
     print(scr.c(f"\n  {profile.summary()}", DIM))
