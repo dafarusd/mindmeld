@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MIND MELD — it knows what you're thinking</title>
+<style>
+  :root {
+    --bg1: #12071f; --bg2: #2a0f45; --purple: #a56cff; --gold: #ffd166;
+    --cyan: #7df0ff; --green: #7dffa8; --red: #ff7d92; --ink: #efe8ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(ellipse at 50% -20%, var(--bg2), var(--bg1) 70%);
+    color: var(--ink); min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 24px 16px 64px;
+  }
+  h1 { font-size: clamp(28px, 6vw, 44px); letter-spacing: 0.35em; color: var(--gold);
+       text-shadow: 0 0 24px rgba(255, 209, 102, 0.5); margin: 12px 0 2px; }
+  .tagline { color: var(--cyan); opacity: 0.85; font-style: italic; margin-bottom: 18px; }
+  #streak { color: var(--gold); font-size: 14px; margin-bottom: 14px; min-height: 18px; }
+
+  #genie { width: 180px; height: 190px; position: relative; margin: 6px auto 10px;
+           animation: float 3.4s ease-in-out infinite; transition: transform .3s; }
+  @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
+  #genie .head { position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      width: 110px; height: 95px; background: linear-gradient(160deg, var(--purple), #6d3bd4);
+      border-radius: 50% 50% 46% 46%; box-shadow: 0 0 40px rgba(165,108,255,.55), inset 0 -12px 24px rgba(0,0,0,.28); }
+  #genie .eye { position: absolute; top: 38px; width: 16px; height: 20px; background: #fff;
+      border-radius: 50%; animation: blink 4.2s infinite; }
+  #genie .eye::after { content:""; position: absolute; top: 6px; left: 5px; width: 7px; height: 8px;
+      background: #241040; border-radius: 50%; }
+  #genie .eye.l { left: 26px; } #genie .eye.r { right: 26px; }
+  @keyframes blink { 0%, 92%, 100% { transform: scaleY(1) } 96% { transform: scaleY(.08) } }
+  #genie .mouth { position: absolute; top: 68px; left: 50%; transform: translateX(-50%);
+      width: 30px; height: 12px; border: 3px solid #2c1350; border-top: none;
+      border-radius: 0 0 40px 40px; }
+  #genie.happy .mouth { height: 16px; background: #2c1350; }
+  #genie.shook { animation: shake .5s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+  #genie .tail { position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+      width: 70px; height: 80px; background: linear-gradient(180deg, #6d3bd4, transparent 85%);
+      border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%; filter: blur(1px); opacity: .9; }
+  #genie .orb { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      width: 16px; height: 16px; border-radius: 50%; background: var(--cyan);
+      box-shadow: 0 0 18px var(--cyan); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{ transform: translateX(-50%) scale(1) } 50%{ transform: translateX(-50%) scale(1.35) } }
+  #genie.boss { animation: float 1.8s ease-in-out infinite; }
+  #genie.boss .head { background: linear-gradient(160deg, #ff5a5a, #8a1538);
+      box-shadow: 0 0 48px rgba(255,90,90,.6), inset 0 -12px 24px rgba(0,0,0,.4);
+      border-radius: 46% 46% 50% 50%; }
+  #genie.boss .eye { background: #ffe9a8; height: 10px; border-radius: 2px; }
+  #genie.boss .eye.l { transform: rotate(18deg); top: 34px; }
+  #genie.boss .eye.r { transform: rotate(-18deg); top: 34px; }
+  #genie.boss .eye::after { background: #3b0606; top: 2px; height: 6px; }
+  #genie.boss .mouth { border-color: #3b0606; width: 24px; height: 4px; border-radius: 0; }
+  #genie.boss .tail { background: linear-gradient(180deg, #8a1538, transparent 85%); }
+  #genie.boss .orb { background: #ff8c42; box-shadow: 0 0 22px #ff8c42; animation: ember .9s infinite; }
+  @keyframes ember { 0%,100%{ transform: translateX(-50%) scale(1) } 50%{ transform: translateX(-50%) scale(1.6) } }
+  #genie.charged .head { background: linear-gradient(160deg, var(--gold), #b8860b);
+      box-shadow: 0 0 40px rgba(255,209,102,.55), inset 0 -12px 24px rgba(0,0,0,.28); }
+  #genie.charged .eye::after { background: #3d2b00; }
+  #genie.charged .mouth { border-color: #3d2b00; }
+  #genie.charged .tail { background: linear-gradient(180deg, #b8860b, transparent 85%); }
+  #genie.charged .orb { background: var(--gold); box-shadow: 0 0 18px var(--gold); }
+
+  #card { width: 100%; max-width: 460px; background: rgba(255,255,255,.05);
+      border: 1px solid rgba(165,108,255,.35); border-radius: 16px; padding: 20px;
+      min-height: 150px; backdrop-filter: blur(6px); }
+  #say { min-height: 60px; font-size: 17px; line-height: 1.5; }
+  #say .genie-line { color: var(--purple); font-weight: 600; }
+  #question { font-size: 21px; font-weight: 700; color: var(--ink); margin: 10px 0 14px;
+      padding: 10px 14px; border-left: 4px solid var(--gold); background: rgba(255,209,102,.07);
+      border-radius: 0 10px 10px 0; display: none; }
+  #qlabel { font-size: 11px; letter-spacing: .35em; color: var(--gold); opacity: .9;
+      display: none; margin-top: 16px; }
+  #player-q { font-size: 15px; color: var(--cyan); font-style: italic; margin-top: 10px; display: none; }
+  #counter { font-size: 12px; color: var(--cyan); opacity: .75; margin-bottom: 8px; }
+  #confidwrap { height: 8px; background: rgba(255,255,255,.08); border-radius: 999px;
+      overflow: hidden; margin: 4px 0 8px; display: none; }
+  #confid { height: 100%; width: 0%; border-radius: 999px; transition: width .6s ease;
+      background: linear-gradient(90deg, var(--purple), var(--gold)); }
+  #confidlabel { font-size: 11px; color: var(--purple); opacity: .8; margin-bottom: 6px; display: none; }
+  #hunch { font-size: 14px; color: var(--cyan); margin: 6px 0; display: none; }
+  @media (max-height: 720px) {
+    #genie { transform: scale(.62); margin: -24px auto -18px; }
+    h1 { font-size: 26px; }
+    #card { padding: 14px; }
+  }
+
+  .btnrow { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
+  button { font: inherit; font-weight: 700; padding: 12px 22px; border-radius: 999px;
+      border: none; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+  button:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+  #btn-yes { background: var(--green); color: #08250f; }
+  #btn-no { background: var(--red); color: #33060d; }
+  #btn-maybe { background: var(--gold); color: #33240a; }
+  #btn-start { background: var(--purple); color: #fff; font-size: 18px; padding: 14px 34px; }
+  .ghost { background: transparent; border: 1px solid var(--cyan); color: var(--cyan); }
+  #btn-boss.locked { opacity: .45; cursor: not-allowed; }
+  .flicker { animation: flick .35s linear; filter: blur(1px); }
+  @keyframes flick { 0%{ opacity: .2 } 50%{ opacity: 1 } 100%{ opacity: .35 } }
+
+  #rb-input { display: none; margin-top: 12px; width: 100%; }
+  #rb-input input { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--purple);
+      background: rgba(0,0,0,.35); color: var(--ink); font: inherit; }
+  #log { margin-top: 12px; max-height: 180px; overflow-y: auto; font-size: 14px; line-height: 1.7; }
+  #log .you { color: var(--cyan); } #log .genie { color: var(--purple); }
+
+  #sharecard { display: none; margin-top: 16px; white-space: pre; font-family: monospace;
+      background: #0a0514; border: 1px solid var(--gold); border-radius: 12px; padding: 16px;
+      color: var(--gold); font-size: 15px; }
+  #brain-panel { margin-top: 14px; font-size: 12px; color: var(--cyan);
+      border-top: 1px dashed rgba(125,240,255,.3); padding-top: 10px; opacity: .85; }
+  footer { margin-top: 26px; font-size: 12px; opacity: .55; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>MIND MELD</h1>
+  <div class="tagline">it knows what you're thinking. probably.</div>
+  <div id="streak"></div>
+
+  <div id="genie">
+    <div class="head"><div class="eye l"></div><div class="eye r"></div><div class="mouth"></div></div>
+    <div class="tail"></div><div class="orb"></div>
+  </div>
+
+  <div id="card">
+    <div id="counter"></div>
+    <div id="confidlabel">the mist is gathering… <span id="confidpct"></span></div>
+    <div id="confidwrap"><div id="confid"></div></div>
+    <div id="say"><span class="genie-line">The mists are gathering...</span></div>
+    <div id="qlabel">— THE GENIE ASKS —</div>
+    <div id="question"></div>
+    <div id="player-q"></div>
+    <div class="btnrow" id="start-row">
+      <button id="btn-start">READ MY MIND</button>
+      <button id="btn-hard" class="ghost">HARD MODE ⚡</button>
+    </div>
+    <div class="btnrow" id="answer-row" style="display:none">
+      <button id="btn-yes">YES</button><button id="btn-no">NO</button><button id="btn-maybe">MAYBE</button>
+    </div>
+    <div class="btnrow" id="confirm-row" style="display:none">
+      <button id="btn-correct">✦ YOU GOT ME</button><button id="btn-wrong" class="ghost">WRONG, GENIE</button>
+    </div>
+    <div class="btnrow" id="gauntlet-row" style="display:none">
+      <button id="btn-gauntlet" style="background:#ff5a5a;color:#2b0606">⚔ ACCEPT THE GAUNTLET</button>
+      <button id="btn-safe" class="ghost">PLAY SAFE</button>
+    </div>
+    <div id="rb-input">
+      <input id="rb-text" placeholder="ask a yes/no question... or type your guess" autocomplete="off">
+    </div>
+    <div id="log"></div>
+    <pre id="sharecard"></pre>
+    <div id="brain-panel"></div>
+    <div class="btnrow" id="again-row" style="display:none">
+      <button id="btn-copy" class="ghost">📋 COPY RESULT</button>
+      <button id="btn-again">PLAY AGAIN</button>
+    </div>
+    <div class="btnrow" id="boss-row" style="display:none">
+      <button id="btn-boss" class="locked" style="background:#8a1538;color:#ffe9a8">👹 ???</button>
+    </div>
+  </div>
+
+  <footer>100% in your browser · no server, no accounts, no tracking · the genie's voice was written by a brain trained at home · build 2.0</footer>
+
+<script src="data.js"></script>
+<script src="game.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const say = t => $("say").innerHTML = '<span class="genie-line">' + t + '</span>';
+let bossMode = false, chargedMode = false, animating = false;
+const genie = mood => { $("genie").className = bossMode ? ("boss " + mood).trim() : (chargedMode ? ("charged " + mood).trim() : mood); };
+const log = (who, t) => { $("log").innerHTML += '<div class="' + who + '"><b>' + who + ':</b> ' + t + '</div>'; $("log").scrollTop = 1e9; };
+const pickR = arr => arr[Math.floor(Math.random() * arr.length)];
+const VOICE = kind => {
+  const model = (MM_DATA.voice_model && MM_DATA.voice_model[kind]) || [];
+  const curated = (MM_DATA.voice_curated && MM_DATA.voice_curated[kind]) || [];
+  const pool = model.concat(curated);
+  return pool.length ? pickR(pool) : "";
+};
+
+const PROFILE_KEY = "mm_profile";
+const RANKS = [[30,"Geniebreaker"],[15,"Mistwalker"],[7,"Thought Thief"],[3,"Mind Reader"],[0,"Apprentice"]];
+const ACH = {
+  first_blood: "First Blood — win your first meld",
+  surgical: "Surgical — read the AI in 6 questions or fewer",
+  stumper: "Stumper — the AI failed to read you",
+  on_fire: "On Fire — 5-day streak",
+  teacher: "Teacher — the genie learned something from you",
+  hard_winner: "Storm Survivor — win a meld on hard mode",
+  boss_slayer: "Boss Slayer — survive the Unleashed genie",
+};
+
+let P;
+function loadProfile() {
+  try { P = JSON.parse(localStorage.getItem(PROFILE_KEY)) || null; } catch { P = null; }
+  if (!P) P = { games: 0, wins: 0, losses: 0, streak: 0, best_streak: 0, last_daily: null,
+                achievements: [], stumps: [], learned: 0, last_results: [] };
+}
+function saveProfile() { localStorage.setItem(PROFILE_KEY, JSON.stringify(P)); }
+function rank() { for (const [t, n] of RANKS) if (P.wins >= t) return n; return "Apprentice"; }
+function unlock(key, newly) { if (!P.achievements.includes(key)) { P.achievements.push(key); newly.push(key); } }
+function bossAvailable() { return P.streak >= 5; }
+
+let G = null;
+
+function newGame(mode, secret, theme, event) {
+  G = { mode, secret, theme, event, phase: "round_a",
+        mr: new MM.MindReader(mode === "boss" ? 9 : (mode === "hard" ? 10 : MM.MAX_QUESTIONS), mode === "boss"),
+        keeper: null, aiQ: null, aiWon: false, youQ: null, youWon: false,
+        learnedNew: false, gauntletWon: false, pendingAttr: null, pendingGuess: null };
+}
+
+function counterText() {
+  if (!G) return "";
+  if (G.phase === "round_a") return "ROUND 1 · question " + (G.mr.asked.length + 1) + " of " + G.mr.maxQuestions;
+  if (G.phase === "round_b") return "ROUND 2 · question " + (G.keeper.questionsAsked + 1) + " · " + (MM.MAX_QUESTIONS - G.keeper.questionsAsked) + " left";
+  return "";
+}
+
+function refreshChrome() {
+  $("counter").textContent = counterText();
+  $("streak").textContent = P.streak > 0 ? "🔥 daily streak: " + P.streak : "";
+  if (G && G.phase === "round_a") {
+    const pct = Math.round(G.mr.topShare() * 100);
+    $("confidwrap").style.display = "block"; $("confidlabel").style.display = "block";
+    $("confid").style.width = Math.max(2, pct) + "%";
+    $("confidpct").textContent = pct + "% sure";
+  } else { $("confidwrap").style.display = "none"; $("confidlabel").style.display = "none"; }
+}
+
+function show(row) {
+  for (const r of ["start-row", "answer-row", "confirm-row", "gauntlet-row"]) $(r).style.display = "none";
+  $("rb-input").style.display = "none";
+  if (row) $(row).style.display = row === "rb-input" ? "block" : "flex";
+}
+
+function revealQuestion(t) {
+  $("qlabel").style.display = "block";
+  $("question").style.display = "block";
+  $("question").textContent = t;
+  $("question").scrollIntoView({behavior: "smooth", block: "center"});
+}
+
+async function flickerThrough(cands, final) {
+  const rest = cands.filter(c => c.toLowerCase() !== final.toLowerCase()).slice(0, 2);
+  for (const c of rest) {
+    $("question").textContent = "... " + c + "?";
+    $("question").classList.add("flicker");
+    await new Promise(r => setTimeout(r, 450));
+    $("question").classList.remove("flicker");
+  }
+}
+
+function askNext() {
+  const attr = G.mr.nextQuestion();
+  if (attr === null) { makeGuess(); return; }
+  G.pendingAttr = attr;
+  say(VOICE("intro") && G.mr.asked.length === 0 ? $("say").textContent : $("say").textContent);
+  revealQuestion(pickR(MM.QUESTIONS[attr]));
+  show("answer-row");
+}
+
+async function makeGuess() {
+  animating = true;
+  G.pendingGuess = G.mr.guess();
+  genie(bossMode ? "boss" : "");
+  revealQuestion("…");
+  await flickerThrough(G.mr.topCandidates(3), G.pendingGuess);
+  if (G.phase !== "round_a") { animating = false; return; }
+  revealQuestion("✦ " + G.pendingGuess.toUpperCase() + " ✦");
+  say("I see it forming in the mist... it's...");
+  show("confirm-row");
+  refreshChrome();
+  animating = false;
+}
+
+function onAnswer(v) {
+  G.mr.answer(G.pendingAttr, v);
+  refreshChrome();
+  if (P.stumps.length && G.mr.asked.length >= 3) {
+    const top = new Set(G.mr.topCandidates(3));
+    const hit = P.stumps.find(s => top.has(s.name));
+    if (hit && !G.revengeSaid) { G.revengeSaid = true; say(VOICE("revenge")); }
+  }
+  if (G.mr.shouldGuess()) makeGuess(); else askNext();
+}
+
+function onConfirm(correct) {
+  if (animating) return;
+  if (correct) {
+    G.aiQ = G.mr.asked.length; G.aiWon = true;
+    const sayLine = VOICE("correct guess") + " " + VOICE("ai wins");
+    if (G.gauntletActive) {
+      G.gauntletActive = false;
+      beginRoundB("Read you in five. The wager is mine.");
+      return;
+    }
+    if (G.mode === "daily" && !G.gauntletDone) {
+      G.gauntletDone = true;
+      say(sayLine + " " + VOICE("gauntlet offer"));
+      show("gauntlet-row");
+      return;
+    }
+    beginRoundB(sayLine);
+    return;
+  }
+  genie("shook");
+  const line = VOICE("wrong guess");
+  G.mr.confirmGuess(false);
+  G.pendingGuess = null;
+  if (G.gauntletActive) {
+    if (G.mr.guessesMade.length >= 2 || G.mr.questionsLeft() <= 0) {
+      G.gauntletActive = false; G.gauntletWon = true;
+      beginRoundB(VOICE("gauntlet lost"));
+      return;
+    }
+    makeGuess();
+    return;
+  }
+  if (G.mr.guessesMade.length >= 3) {
+    G.aiQ = G.mr.asked.length; G.aiWon = false;
+    say(line + " You stumped me. WHAT were you thinking of? (teach me — or press enter to keep it secret)");
+    G.learnMode = true;
+    $("rb-text").placeholder = "it was... (enter to teach, empty to skip)";
+    show("rb-input"); $("rb-text").focus();
+    return;
+  }
+  const attr = G.mr.nextQuestion();
+  if (attr === null) { makeGuess(); return; }
+  G.pendingAttr = attr;
+  say(line);
+  revealQuestion(pickR(MM.QUESTIONS[attr]));
+  show("answer-row");
+}
+
+function beginRoundB(note) {
+  G.phase = "round_b";
+  const ev = G.event || {};
+  G.keeper = new MM.SecretKeeper(G.secret, {
+    bluff: true, bluffCount: ev.bluffCount || 1, invertFirstN: ev.invertFirstN || 0 });
+  $("question").style.display = "none"; $("qlabel").style.display = "none"; $("player-q").style.display = "none";
+  G.learnMode = false; $("rb-text").placeholder = "ask a yes/no question... or type your guess";
+  say((note || "") + " Now — YOU read MY mind. Ask, or guess. One rule: I may lie exactly once.");
+  show("rb-input"); $("rb-text").focus(); $("rb-text").scrollIntoView({behavior: "smooth", block: "center"});
+  refreshChrome();
+}
+
+function finish() {
+  G.phase = "done";
+  show(null); $("question").style.display = "none"; $("qlabel").style.display = "none";
+  const youBeatIt = G.youWon && (!G.aiWon || (G.youQ || 99) <= (G.aiQ || 99));
+  const now = new Date();
+  const dayNum = MM.dateToOrdinal(now.getFullYear(), now.getMonth() + 1, now.getDate()) % 1000;
+  const card = MM.shareCard(dayNum, G.aiQ, G.aiWon, G.youQ, G.youWon, G.theme, rank());
+  $("sharecard").style.display = "block"; $("sharecard").textContent = card;
+  $("again-row").style.display = "flex";
+  const disclosure = G.keeper ? G.keeper.bluffDisclosure() : null;
+  if (disclosure) log("genie", disclosure);
+
+  const newly = [];
+  P.games++;
+  if (youBeatIt) { P.wins++; unlock("first_blood", newly); if (G.mode === "hard") unlock("hard_winner", newly); }
+  else if (G.aiWon) P.losses++;
+  if (G.youWon && G.youQ <= 6) unlock("surgical", newly);
+  if (!G.aiWon) unlock("stumper", newly);
+  if (G.learnedNew) unlock("teacher", newly);
+  if (G.mode === "boss" && !G.aiWon) unlock("boss_slayer", newly);
+  if (G.mode === "daily") {
+    const today = MM.dateToOrdinal(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+    if (P.last_daily !== today) {
+      if (youBeatIt) {
+        P.streak = (P.last_daily === today - 1) ? P.streak + 1 : 1;
+        P.best_streak = Math.max(P.best_streak, P.streak);
+        if (G.gauntletWon) { P.streak++; P.best_streak = Math.max(P.best_streak, P.streak); log("genie", "Gauntlet survived — today's streak counts DOUBLE."); }
+      } else P.streak = 0;
+      P.last_daily = today;
+    }
+  }
+  if (P.streak >= 5) unlock("on_fire", newly);
+  P.last_results.push(G.aiWon); P.last_results = P.last_results.slice(-10);
+  saveProfile();
+  for (const a of newly) log("genie", "🏆 achievement unlocked: " + ACH[a]);
+  say(G.youWon ? VOICE("you win duel") || "You read ME? Nobody reads ME!" : VOICE("ai wins duel") || "My secret stays mine.");
+  refreshChrome();
+  refreshBoss();
+}
+
+function refreshBoss() {
+  const bb = $("btn-boss");
+  $("boss-row").style.display = "flex";
+  if (bossAvailable()) { bb.classList.remove("locked"); bb.textContent = "👹 GENIE UNLEASHED (boss)"; }
+  else { bb.classList.add("locked"); bb.textContent = "👹 ??? — win 5 straight to unleash"; }
+}
+
+async function startGame(mode) {
+  bossMode = mode === "boss"; chargedMode = false;
+  $("boss-row").style.display = "none";
+  let secret = null, theme = null, event = null;
+  if (mode === "daily") {
+    const now = new Date();
+    [secret, theme, event] = await MM.dailyInfo(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  } else {
+    const names = MM.NAMES();
+    secret = pickR(names);
+  }
+  newGame(mode, secret, theme, event);
+  let intro = VOICE(mode === "daily" ? "daily intro" : "intro");
+  if (theme) intro += " Today is " + theme + ".";
+  if (event) intro += " " + event.intro;
+  if (bossMode) intro = VOICE("boss intro") + " " + intro;
+  if (P.stumps.length) intro = VOICE("grudge").replace("{name}", P.stumps[P.stumps.length - 1].name) + " " + intro;
+  say(intro + " But FIRST — I will read YOUR mind. Think of an animal, object, food, famous person, or character. Lock it in. Then answer below.");
+  askNext();
+  refreshChrome();
+}
+
+$("btn-start").onclick = () => { genie(""); startGame("daily"); };
+$("btn-hard").onclick = () => { genie(""); startGame("hard"); };
+$("btn-boss").onclick = () => {
+  if ($("btn-boss").classList.contains("locked")) { say("The boss is earned, not summoned. Win 5 straight first."); return; }
+  genie("boss"); startGame("boss");
+};
+$("btn-yes").onclick = () => onAnswer(MM.YES);
+$("btn-no").onclick = () => onAnswer(MM.NO);
+$("btn-maybe").onclick = () => onAnswer(MM.MAYBE);
+$("btn-correct").onclick = () => onConfirm(true);
+$("btn-wrong").onclick = () => onConfirm(false);
+$("btn-gauntlet").onclick = () => {
+  chargedMode = true; genie("");
+  G.gauntletActive = true;
+  G.mr = new MM.MindReader(5, true);
+  G.pendingGuess = null;
+  say("Think of something NEW. Five questions. No mercy.");
+  askNext();
+};
+$("btn-safe").onclick = () => beginRoundB("Wise. The mist respects caution.");
+$("btn-again").onclick = () => startGame("free");
+$("btn-copy").onclick = () => { navigator.clipboard.writeText($("sharecard").textContent); $("btn-copy").textContent = "✓ COPIED"; };
+
+$("rb-text").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const t = e.target.value.trim(); e.target.value = "";
+  if (G.learnMode) {
+    G.learnMode = false;
+    if (t) {
+      try {
+        const clean = MM.learnEntity(t, G.mr.answers);
+        G.learnedNew = true;
+        P.stumps.push({ name: clean, day: Math.floor(Date.now() / 86400000) });
+        P.stumps = P.stumps.slice(-50); P.learned++;
+        saveProfile();
+        log("genie", "'" + clean + "' — etched into my mind. Forever.");
+      } catch (err) { log("genie", String(err.message || err)); }
+    }
+    beginRoundB("");
+    return;
+  }
+  if (!t || !G.keeper) return;
+  const looksGuess = !t.endsWith("?") && t.split(/\s+/).length <= 4 && !/\b(is|are|does|do|can|could|would|did)\b/i.test(t);
+  if (looksGuess) {
+    const [correct, heat] = G.keeper.tryGuess(t);
+    log("you", t);
+    if (correct) {
+      genie("shook");
+      G.youWon = true; G.youQ = G.keeper.questionsAsked + 1;
+      log("genie", "Yes! It was " + G.secret + ".");
+      finish();
+    } else {
+      G.keeper.questionsAsked++;
+      const reply = "No. It is not " + t + "." + (heat ? " — " + heat : " (never heard of it, in fact)");
+      log("genie", reply);
+      $("player-q").style.display = "block"; $("player-q").textContent = "you guessed: " + t;
+      say(reply);
+      if (G.keeper.questionsAsked >= MM.MAX_QUESTIONS) { G.youWon = false; G.youQ = MM.MAX_QUESTIONS; say("Twenty questions, gone. My secret was " + G.secret.toUpperCase() + "."); finish(); }
+    }
+  } else {
+    const [kind, reply] = G.keeper.answerQuestion(t);
+    const flavor = kind === "unknown" ? "" : VOICE("answer " + kind);
+    log("you", t); log("genie", reply + (flavor ? " " + flavor : ""));
+    $("player-q").style.display = "block"; $("player-q").textContent = "you asked: " + t;
+    say(reply + (flavor ? ' <span style="opacity:.65;font-size:15px">' + flavor + '</span>' : ""));
+    if (G.keeper.questionsAsked >= MM.MAX_QUESTIONS) { G.youWon = false; G.youQ = MM.MAX_QUESTIONS; say("Twenty questions, gone. My secret was " + G.secret.toUpperCase() + "."); finish(); }
+  }
+  refreshChrome();
+});
+
+loadProfile();
+$("brain-panel").textContent = "🧠 the brain: 26M params · trained 14,432 steps at home · loss 0.115 · voice pre-baked by the model at build time (" +
+  Object.values(MM_DATA.voice_model || {}).reduce((a, b) => a + b.length, 0) + " lines)";
+refreshBoss();
+
+if (location.search.includes("autostart")) window.addEventListener("load", async () => {
+  const m = location.search.match(/seq=([^&]+)/);
+  const mode = (location.search.match(/mode=([a-z]+)/) || [])[1] || "daily";
+  $("btn-start").click = null;
+  await startGame(mode);
+  if (m) for (const rawItem of m[1].split(",")) {
+    const a = decodeURIComponent(rawItem);
+    await new Promise(r => setTimeout(r, 500));
+    if (a.startsWith("ask:")) {
+      $("rb-text").value = a.slice(4);
+      $("rb-text").dispatchEvent(new KeyboardEvent("keydown", {key: "Enter"}));
+    } else {
+      ({yes: $("btn-yes"), no: $("btn-no"), maybe: $("btn-maybe"),
+        correct: $("btn-correct"), wrong: $("btn-wrong"),
+        gauntlet: $("btn-gauntlet"), safe: $("btn-safe"), boss: $("btn-boss"),
+        hard: $("btn-hard"), again: $("btn-again")}[a] || {}).click?.();
+    }
+  }
+});
+</script>
+</body>
+</html>

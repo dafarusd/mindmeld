@@ -193,3 +193,41 @@ architectural and presentational:
 - Round-B question cap no longer inherits boss/gauntlet's smaller cap —
   round 2 is always 20 questions.
 - Tests: 65 total, all green.
+
+## 2026-08-25 — v2.0: the static build
+
+External review argued (correctly, verified line-by-line) that the only
+viral-survivable distribution is a static site — and that the three
+server ties (voice inference, session state, engine) come apart cleanly.
+Built it:
+
+- **Engine ported to JavaScript** (`static_site/game.js`, ~400 lines):
+  MindReader, SecretKeeper (bluff/invert/heat), daily secrets, event days,
+  similarity, learning — all client-side. **Parity proven against the
+  Python engine by test**: identical self-play (94.8%, median 10q) and
+  identical daily secrets/labels across 9 test days
+  (`tests/test_static_engine.js`, node).
+  - Port bugs found by the parity test: Python epoch ordinal is 719163
+    (not 719162 — off-by-one shifted every weekday), and JS `parseInt`
+    truncates the 256-bit daily hash at 53 bits — fixed with BigInt, now
+    byte-exact with Python.
+- **Voice pre-baked**: `scripts/build_voice.py` drives the trained model
+  through the runtime quality gate at build time — 128 unique lines
+  shipped in `data.js`. Honest labeling: "voice pre-baked by the model."
+  Found during baking: the model still recalled the stale "keeper of the
+  141" intro (trained pre-rename) — filtered; also the model produced
+  polarity-correct answers for banter kinds it was never trained on
+  (genuine generalization from Round-B transcript format).
+- **State → browser**: profile/streaks/achievements/stumps in
+  localStorage; learned entities per-player (the public-write liability
+  becomes a personal feature).
+- **Daily pool pinned to base entities** (Python side too — learned
+  entities no longer leak into the daily secret anywhere).
+- **Hunch omitted on static** (live inference is the one thing that can't
+  be pre-baked — it conditions on the live transcript). Documented in the
+  brain panel; desktop version keeps it.
+- Works from `file://` (double-click) — verified by headless Chrome
+  screenshot. Async race found by screenshot: confirming a guess mid-
+  flicker left mixed round-1/round-2 visuals — busy guard added.
+- The Python game is untouched and still the reference implementation;
+  all 65 Python tests green.

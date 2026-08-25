@@ -389,13 +389,13 @@ def daily_info(day_ordinal: int) -> tuple[str, str | None]:
     weekday = _date.fromordinal(day_ordinal).weekday()
     theme = WEEKDAY_THEMES.get(weekday)
     event = event_for_date(day_ordinal)
-    pool = list(ENTITY_NAMES)
+    pool = [n for n in ENTITY_NAMES if not ENTITIES[n].get("learned")]
     if event and "pool" in event:
         pool = [n for n in pool if event["pool"](ENTITIES[n])]
     elif theme:
         pool = [n for n in pool if theme[1](ENTITIES[n])]
     if not pool:
-        pool = list(ENTITY_NAMES)
+        pool = [n for n in ENTITY_NAMES if not ENTITIES[n].get("learned")]
     digest = hashlib.sha256(f"mindmeld-{day_ordinal}".encode()).hexdigest()
     secret = sorted(pool)[int(digest, 16) % len(pool)]
     label = (event["name"] if event else None) or (theme[0] if theme else None)

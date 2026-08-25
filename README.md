@@ -35,6 +35,26 @@ genie to speak with its *learned* voice, install PyTorch
 (`pip install torch`). Without it the game still plays perfectly — the
 genie speaks its built-in script and a one-line notice tells you why.
 
+## The static build (`static_site/`) — viral-grade distribution
+
+The whole game also ships as a **fully static site**: no server, no
+Python, no install. Open `static_site/index.html` from a double-click, or
+deploy the folder to any static host (Cloudflare Pages, GitHub Pages,
+itch.io) and anyone on Earth plays from a link.
+
+- The engine is ported to JavaScript (`static_site/game.js`) with
+  **proven parity**: identical self-play accuracy (94.8%, median 10q) and
+  identical daily secrets as the Python engine — tested by
+  `tests/test_static_engine.js` (node)
+- The genie's voice is **pre-baked at build time** by the trained model:
+  `scripts/build_voice.py` regenerates `voice_model` in `data.js` through
+  the same quality gate used at runtime (128 lines shipped)
+- Learning becomes personal: taught entities live in the player's browser
+  (localStorage), never touching anyone else's game
+- The live Brain's Hunch is the one desktop-only feature (it needs the
+  model running); the static build documents this in the brain panel
+- Rebuild data after KB changes: `python3 scripts/export_kb.py`
+
 ## The game
 
 **Round 1:** think of an animal, object, food, famous person, or
