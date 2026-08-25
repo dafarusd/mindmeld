@@ -114,6 +114,14 @@
   #brain-panel { margin-top: 14px; font-size: 12px; color: var(--cyan);
       border-top: 1px dashed rgba(125,240,255,.3); padding-top: 10px; opacity: .85; }
   footer { margin-top: 26px; font-size: 12px; opacity: .55; text-align: center; }
+  #about { max-width: 620px; margin: 34px auto 0; font-size: 14px; line-height: 1.62;
+           color: var(--ink); opacity: .82; }
+  #about h2 { font-size: 13px; letter-spacing: .16em; text-transform: uppercase;
+              color: var(--gold); margin: 26px 0 9px; font-weight: 700; }
+  #about p { margin: 0 0 11px; }
+  #about b { color: var(--cyan); font-weight: 600; }
+  #about .rule { border: 0; border-top: 1px dashed rgba(165,108,255,.3); margin: 26px 0 0; }
+  #about a { color: var(--purple); }
 </style>
 </head>
 <body>
@@ -163,6 +171,46 @@
     </div>
   </div>
 
+
+  <section id="about">
+    <hr class="rule">
+    <h2>What this is</h2>
+    <p>Two rounds, about three minutes. <b>First the genie reads you:</b> think of an
+    animal, object, food, famous person or character, answer its yes/no questions, and
+    watch it close in. It knows <b>386 things</b> and asks from <b>120 hand-written
+    attributes</b>, picking whichever question splits the field best. It wins
+    <b>94.8%</b> of the time, usually in about ten questions.</p>
+    <p><b>Then you read the genie.</b> It hides something and you interrogate it in plain
+    text. It answers honestly — except it is allowed to lie exactly once per game, and it
+    tells you so up front. Catching the lie is the whole game. Beat its question count and
+    you win the meld.</p>
+    <p>There is one secret per day, the same one for everyone, so you can compare. Stump
+    the genie and it asks what you were thinking of, then remembers it — on your device,
+    for you.</p>
+
+    <h2>The brain</h2>
+    <p>The genie's personality comes from a language model I trained from scratch on my
+    own laptop: <b>26.8M parameters</b>, four hours on CPU, no cloud and no API. Its
+    training corpus was 4.2MB of game transcripts and the genie's script.</p>
+    <p>It learned that script <b>extremely</b> well. Of the 21 lines it produced that
+    passed the quality filter, <b>20 are byte-identical</b> to lines it was trained on.
+    That is what memorisation looks like at this scale — the model reconstructs the voice
+    rather than inventing new ones, and a strict filter can't tell its output from the
+    original. The numbers in the panel above are computed live from the shipped data, not
+    typed in by me.</p>
+    <p>The model never touches facts, questions, or game logic. The knowledge engine is
+    deterministic, so the genie can't contradict itself and can't break because the brain
+    had an odd day.</p>
+
+    <h2>Where it runs</h2>
+    <p>Here. All of it. The knowledge base, the engine and the genie's voice are about
+    <b>1.1MB</b> that your browser downloads once and then runs on its own. There is no
+    server, no account, no tracking and no analytics. Your streaks and anything the genie
+    learns from you live in your browser's local storage and never leave your device —
+    there is no back end for them to go to.</p>
+    <p>Source, training code and the model weights are open under AGPL-3.0:
+    <a href="https://github.com/dafarusd/mindmeld">github.com/dafarusd/mindmeld</a></p>
+  </section>
   <footer>100% in your browser · no server, no accounts, no tracking · the genie's voice, learned and reproduced by a 26.8M model trained at home · build 2.1</footer>
 
 <script src="data.js"></script>
