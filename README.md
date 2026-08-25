@@ -80,9 +80,9 @@ mode** (`--hard` / HARD MODE button) keep score over time.
 | Layer | What it does | Numbers |
 |---|---|---|
 | **Knowledge engine** (`game/`) | 386 entities × 120 curated attributes, entropy-based question selection, ground-truth answers | 94.8% self-play (386 entities), median 10 questions |
-| **Trained LLM** (`newton/`) | the genie's *voice*: banter, taunts, celebrations | 26M-param GPT, loss 0.115 |
+| **Trained LLM** (`newton/`) | learned the genie's voice to byte-identical recall — 20 of 21 baked lines match the training script exactly | 26.8M-param GPT, loss 0.115 |
 
-The engine is the spine; the model is the personality. Model output
+The engine is the spine; the model **learned** the personality — well enough that 20 of its 21 baked lines are byte-identical to the script it was trained on. Model output
 passes a strict validation gate (length, charset, must end in sentence
 punctuation, no fact-leaks) and falls back to curated lines — the game
 can never break because the brain had a weird day. The model's voice is

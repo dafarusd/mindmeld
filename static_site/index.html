@@ -163,7 +163,7 @@
     </div>
   </div>
 
-  <footer>100% in your browser · no server, no accounts, no tracking · the genie's voice was written by a brain trained at home · build 2.0</footer>
+  <footer>100% in your browser · no server, no accounts, no tracking · the genie's voice, learned and reproduced by a 26.8M model trained at home · build 2.1</footer>
 
 <script src="data.js"></script>
 <script src="game.js"></script>
@@ -488,8 +488,14 @@ $("rb-text").addEventListener("keydown", e => {
 });
 
 loadProfile();
-$("brain-panel").textContent = "🧠 the brain: 26.8M params · trained 14,432 steps at home · loss 0.115 · voice pre-baked by the model at build time (" +
-  Object.values(MM_DATA.voice_model || {}).reduce((a, b) => a + b.length, 0) + " lines)";
+(function () {
+  const model = Object.values(MM_DATA.voice_model || {}).flat();
+  const curated = new Set(Object.values(MM_DATA.voice_curated || {}).flat());
+  const recalled = model.filter(l => curated.has(l)).length;
+  $("brain-panel").textContent =
+    "🧠 the brain: 26.8M params · trained 14,432 steps at home · loss 0.115 · voice reproduced by the model at build time — " +
+    model.length + " lines, " + recalled + " of them byte-identical to the script it trained on";
+})();
 refreshBoss();
 
 if (location.search.includes("autostart")) window.addEventListener("load", async () => {
