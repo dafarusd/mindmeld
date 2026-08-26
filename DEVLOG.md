@@ -276,3 +276,23 @@ Built it:
 - README, the brain panel and the static site footer figures updated to match
   the shipped model. `ckpt/train3.out` and `ckpt/tokens.corpus` gitignored
   alongside the earlier training artifacts.
+
+---
+
+## 2026-08-26 — checkpoint moved to Git LFS
+
+- GitHub warned on push that `ckpt/brain.fp16.pt` is 51.15MB, over its 50MB
+  recommendation, and every retrain would add another copy to history forever.
+- `git lfs migrate import --include="ckpt/*.pt" --everything` rewrote all 15
+  commits, so both checkpoint versions moved out of the object database.
+  Force-pushed to `main`; every commit hash from the first checkpoint commit
+  onward changed. A pre-migration bundle is at
+  `~/backups/mindmeld-pre-lfs-20260826.bundle` if the old hashes are ever
+  needed.
+- Git objects are now 376KB. A fresh clone is 52MB — one checkpoint version
+  instead of the whole history of them — verified by cloning from GitHub and
+  checking the file's sha256 against the original.
+- **Anyone cloning now needs `git lfs install` first.** Without it the
+  checkpoint arrives as a 133-byte pointer file. This bit during the migration
+  itself: the checkout after the rewrite left a pointer in the working tree
+  until `git lfs checkout` restored the real file.
