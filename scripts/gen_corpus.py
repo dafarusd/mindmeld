@@ -40,6 +40,11 @@ OUT = Path(__file__).resolve().parent.parent / "data" / "corpus.txt"
 EOT = "<|endoftext|>"
 
 ATTR_PROSE = {
+    "has_a_face": ("has a face", "has no face"),
+    "moves_on_its_own": ("moves on its own", "does not move on its own"),
+    "is_natural": ("is found in nature", "is man-made"),
+    "is_soft": ("is soft", "is not soft"),
+    "has_legs": ("has legs", "has no legs"),
     "alive_today": ("is alive today", "is not alive today"),
     "is_animal": ("is an animal", "is not an animal"),
     "is_human": ("is a human", "is not a human"),
@@ -169,8 +174,8 @@ def fact_sheets() -> list[str]:
     docs = []
     for name in ENTITY_NAMES:
         vec = ENTITIES[name]["vec"]
-        yes_traits = [ATTR_PROSE[a][0] for a in ATTRIBUTES if vec[a] == YES]
-        no_traits = [ATTR_PROSE[a][1] for a in ATTRIBUTES if vec[a] == NO]
+        yes_traits = [ATTR_PROSE[a][0] for a in ATTRIBUTES if vec[a] == YES and a in ATTR_PROSE]
+        no_traits = [ATTR_PROSE[a][1] for a in ATTRIBUTES if vec[a] == NO and a in ATTR_PROSE]
         lines = [f"ENTITY: {name}", f"SUMMARY: {ENTITIES[name]['blurb']}."]
         lines.append("TRAITS: " + "; ".join(yes_traits) + ".")
         docs.append("\n".join(lines))

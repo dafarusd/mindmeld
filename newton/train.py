@@ -70,13 +70,21 @@ class Trainer:
 
     def _load_tokens(self) -> torch.Tensor:
         cache = self.ckpt_dir / "tokens.pt"
-        if cache.exists():
+        # The cache is keyed to the corpus that produced it. Without this check a
+        # regenerated corpus is silently ignored and training runs for hours on
+        # the old text.
+        stamp = self.ckpt_dir / "tokens.corpus"
+        sig = f"{self.corpus_path.stat().st_size}:{int(self.corpus_path.stat().st_mtime)}"
+        if cache.exists() and stamp.exists() and stamp.read_text().strip() == sig:
             return torch.load(cache)
+        if cache.exists():
+            print("corpus changed since tokens.pt was written — re-encoding")
         print("encoding corpus...")
         text = self.corpus_path.read_text(encoding="utf-8")
         ids = self.tok.encode(text.replace("<|endoftext|>", " <|endoftext|> "))
         t = torch.tensor(ids, dtype=torch.long)
         torch.save(t, cache)
+        stamp.write_text(sig)
         print(f"tokens: {len(t):,}")
         return t
 
