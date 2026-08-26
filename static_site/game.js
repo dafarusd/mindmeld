@@ -143,6 +143,37 @@ const MM = (() => {
     questionsLeft() { return this.maxQuestions - this.asked.length; }
   }
 
+  // Phrases asking the OPPOSITE of an attribute. Without this, "is it man made?"
+
+  // matches "man" -> is_human and the genie states something false.
+
+  const NEGATED = {
+
+    "man made": "is_natural", "man-made": "is_natural", "manmade": "is_natural",
+
+    "artificial": "is_natural", "built by people": "is_natural", "made by people": "is_natural",
+
+  };
+
+  function matchAttributeSigned(text) {
+
+    const t = String(text).toLowerCase();
+
+    let best = null, bestLen = 0, invert = false;
+
+    for (const [phrase, attr] of Object.entries(NEGATED))
+
+      if (t.includes(phrase) && phrase.length > bestLen) { best = attr; bestLen = phrase.length; invert = true; }
+
+    for (const [word, attr] of Object.entries(MM_DATA.synonyms))
+
+      if (t.includes(word) && word.length > bestLen) { best = attr; bestLen = word.length; invert = false; }
+
+    return [best, invert];
+
+  }
+
+
   function matchAttribute(text) {
     const t = text.toLowerCase();
     let best = null, bestLen = 0;
@@ -206,7 +237,7 @@ const MM = (() => {
       }
     }
     answerQuestion(text) {
-      const attr = matchAttribute(text);
+      const [attr, invert] = matchAttributeSigned(text);
       // A question the genie can't understand costs the player nothing. The
       // knowledge base has no attribute for colour, weight, age or place, so
       // plenty of fair questions land here. Charging for them made round 2
@@ -214,6 +245,7 @@ const MM = (() => {
       if (!attr) return ["unknown", UNKNOWN_REPLIES[Math.floor(Math.random() * UNKNOWN_REPLIES.length)]];
       this.questionsAsked++;
       let v = ENTITIES[this.secret].vec[attr];
+      if (invert) v = v === YES ? NO : v === NO ? YES : v;
       if (this.bluffAttrs.includes(attr)) { this.bluffUsed = true; v = v === YES ? NO : v === NO ? YES : v; }
       if (this.questionsAsked <= this.invertFirstN) v = v === YES ? NO : v === NO ? YES : v;
       if (v === YES) return ["yes", "Yes."];

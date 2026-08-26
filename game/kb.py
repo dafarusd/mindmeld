@@ -129,6 +129,11 @@ ATTRIBUTES = [
     "pecks_wood",
     "common_city_bird",
     "famous_for_its_tail",
+    "has_a_face",
+    "moves_on_its_own",
+    "is_natural",
+    "is_soft",
+    "has_legs",
     "was_a_military_leader",
     "was_american_president",
     "civil_rights_icon",
@@ -602,7 +607,52 @@ def _build():
     return table
 
 
+LEGLESS = {
+    "snake", "worm", "earthworm", "slug", "snail", "eel", "jellyfish", "octopus",
+    "squid", "whale", "dolphin", "shark", "fish", "goldfish", "salmon", "tuna",
+    "clownfish", "seahorse", "starfish", "coral", "oyster", "clam",
+}
+
+
+def _derive_new_attributes(table: dict) -> None:
+    """Fill the five attributes added after live play showed round 2 was hard to
+    ask questions in. Values are derived from attributes already set by hand, so
+    they stay consistent with the curated data instead of being guessed 386 times.
+    MAYBE is used wherever the honest answer is 'it depends'."""
+    for name, row in table.items():
+        vec = row["vec"]
+        g = lambda a: vec.get(a, MAYBE)
+        low = name.lower()
+
+        animal = g("is_animal") == YES
+        humanoid = g("is_human") != NO or (g("is_fictional") == YES and g("is_animal") == NO)
+        aquatic = g("is_sea_creature") == YES or g("lives_in_water") == YES
+        rigid = g("made_of_metal") == YES or g("is_vehicle") == YES or g("is_electronic") == YES or g("is_tool") == YES
+
+        vec["has_a_face"] = YES if (animal or humanoid) else (MAYBE if g("is_toy") == YES else NO)
+        vec["moves_on_its_own"] = YES if (animal or humanoid or g("is_vehicle") == YES) else NO
+        vec["is_natural"] = (
+            YES if (animal or g("is_plant") == YES or g("is_fruit_or_veg") == YES)
+            else NO if (rigid or g("is_furniture") == YES or g("is_wearable") == YES)
+            else MAYBE
+        )
+        vec["is_soft"] = (
+            YES if (g("has_fur") == YES or g("is_wearable") == YES)
+            else NO if rigid
+            else MAYBE
+        )
+        if low in LEGLESS:
+            vec["has_legs"] = NO
+        elif humanoid or (animal and not aquatic):
+            vec["has_legs"] = YES
+        elif g("is_furniture") == YES or animal:
+            vec["has_legs"] = MAYBE
+        else:
+            vec["has_legs"] = NO
+
+
 ENTITIES = _build()
+_derive_new_attributes(ENTITIES)
 
 
 def _merge_learned() -> None:

@@ -1,6 +1,13 @@
 """Question bank: phrasings for every attribute, plain and genie-flavored."""
 
 QUESTIONS = {
+    # Added with the five attributes from live play.
+    "has_a_face": ["Does it have a face?", "Does it have eyes?"],
+    "moves_on_its_own": ["Does it move on its own?", "Can it move by itself?"],
+    "is_natural": ["Is it found in nature?", "Is it natural rather than man-made?"],
+    "is_soft": ["Is it soft?", "Is it soft to touch?"],
+    "has_legs": ["Does it have legs?", "Does it walk on legs?"],
+
     "alive_today": [
         "Is it alive today?",
         "Is it a living, breathing thing right now?",

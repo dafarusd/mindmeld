@@ -163,6 +163,12 @@ class MindReader:
 
 
 SYNONYMS: dict[str, str] = {
+    'face': 'has_a_face', 'eyes': 'has_a_face',
+    'move on its own': 'moves_on_its_own', 'move by itself': 'moves_on_its_own',
+    'natural': 'is_natural', 'in nature': 'is_natural',
+    'soft': 'is_soft', 'fluffy': 'is_soft',
+    'legs': 'has_legs', 'walk': 'has_legs',
+
     # Added after live play: 40% of natural questions matched nothing.
     'hold': 'handheld',
     'carry': 'handheld',
@@ -289,13 +295,36 @@ def UNKNOWN_REPLY() -> str:
     return _r.choice(UNKNOWN_REPLIES)
 
 
+# Phrases that ask the OPPOSITE of an attribute. "is it man made?" must not be
+# answered with is_human ("man" matched) or with is_natural unflipped — either
+# way the genie states something false. These map to (attribute, invert).
+NEGATED: dict[str, str] = {
+    "man made": "is_natural",
+    "man-made": "is_natural",
+    "manmade": "is_natural",
+    "artificial": "is_natural",
+    "built by people": "is_natural",
+    "made by people": "is_natural",
+}
+
+
 def match_attribute(question_text: str) -> str | None:
+    """Return the attribute a free-text question is asking about, or None."""
+    attr, _ = match_attribute_signed(question_text)
+    return attr
+
+
+def match_attribute_signed(question_text: str) -> tuple[str | None, bool]:
+    """As match_attribute, plus whether the answer must be inverted."""
     text = question_text.lower()
-    best, best_len = None, 0
+    best, best_len, invert = None, 0, False
+    for phrase, attr in NEGATED.items():
+        if phrase in text and len(phrase) > best_len:
+            best, best_len, invert = attr, len(phrase), True
     for word, attr in SYNONYMS.items():
         if word in text and len(word) > best_len:
-            best, best_len = attr, len(word)
-    return best
+            best, best_len, invert = attr, len(word), False
+    return best, invert
 
 
 def resolve_entity(text: str) -> str | None:
@@ -351,7 +380,7 @@ class SecretKeeper:
         return self.bluff_attrs[0] if self.bluff_attrs else None
 
     def answer_question(self, text: str) -> tuple[str, str]:
-        attr = match_attribute(text)
+        attr, invert = match_attribute_signed(text)
         if attr is None:
             # A question the genie can't understand costs the player nothing.
             # The knowledge base has no attribute for colour, weight, age or
@@ -360,6 +389,8 @@ class SecretKeeper:
             return "unknown", UNKNOWN_REPLY()
         self.questions_asked += 1
         v = ENTITIES[self.secret]["vec"][attr]
+        if invert:
+            v = {YES: NO, NO: YES}.get(v, v)
         if attr in self.bluff_attrs:
             self.bluff_used = True
             v = {YES: NO, NO: YES}.get(v, v)
