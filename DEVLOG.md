@@ -244,3 +244,35 @@ Built it:
   flicker left mixed round-1/round-2 visuals — busy guard added.
 - The Python game is untouched and still the reference implementation;
   all 65 Python tests green.
+
+---
+
+## 2026-08-26 — v2.2: the memorisation fix that didn't fix it
+
+- **The hypothesis**: the model reproduced the script because the corpus gave
+  it a list to memorise, not a pattern to learn — 65 authored personality
+  lines, each repeated ten times, and nothing else in that voice.
+- **The fix attempted**: repeats cut from ten to three, plus
+  `scripts/expand_voice.py`, which recombines fragments of those same 65 lines
+  into thousands of new sentences. Every word is Dafarus's own; only the
+  arrangements are new. Having another model write lines would have taught
+  this one someone else's voice and destroyed the only interesting claim the
+  project makes.
+- **Retrained**: resumed from step 14,432, ran a further 15,387 steps
+  (4h CPU, ~8h total across three runs). Corpus 7,996 docs / 5.3MB,
+  702,593 tokens. Loss 0.115 → **0.093**.
+- **The result: no change. 33 of 35 baked lines are byte-identical to the
+  script (94%, against 95% before).** The two exceptions are truncations of
+  authored lines, not new sentences. A 26.8M model on 5.3MB of text
+  reconstructs its training data, and recombinations of that data are just
+  more training data to reconstruct.
+- **What did improve**: coverage. The yes, no and maybe answers, which the old
+  model could not voice at all, now bake 3, 3 and 2 lines. The pack went 21 →
+  35 lines.
+- **Known bad, not yet fixed**: the context pass was not re-run after the
+  re-bake. Some lines are filed under the wrong kind — a win taunt sits in
+  `intro`, a wrong-guess line sits in `correct guess`, and `you win duel`
+  holds a near-duplicate pair. Corpus and re-bake work deferred.
+- README, the brain panel and the static site footer figures updated to match
+  the shipped model. `ckpt/train3.out` and `ckpt/tokens.corpus` gitignored
+  alongside the earlier training artifacts.

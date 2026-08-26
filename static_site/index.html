@@ -177,7 +177,7 @@
     <h2>What this is</h2>
     <p>Two rounds, about three minutes. <b>First the genie reads you:</b> think of an
     animal, object, food, famous person or character, answer its yes/no questions, and
-    watch it close in. It knows <b>386 things</b> and asks from <b>120 hand-written
+    watch it close in. It knows <b>386 things</b> and asks from <b>125 hand-written
     attributes</b>, picking whichever question splits the field best. It wins
     <b>94.8%</b> of the time, usually in about ten questions.</p>
     <p><b>Then you read the genie.</b> It hides something and you interrogate it in plain
@@ -190,10 +190,11 @@
 
     <h2>The brain</h2>
     <p>The genie's personality comes from a language model I trained from scratch on my
-    own laptop: <b>26.8M parameters</b>, four hours on CPU, no cloud and no API. Its
-    training corpus was 4.2MB of game transcripts and the genie's script.</p>
-    <p>It learned that script <b>extremely</b> well. Of the 21 lines it produced that
-    passed the quality filter, <b>20 are byte-identical</b> to lines it was trained on.
+    own laptop: <b>26.8M parameters</b>, eight hours on CPU across three runs, no cloud and
+    no API. Its training corpus was 5.3MB of game transcripts and the genie's script.</p>
+    <p>It learned that script <b>extremely</b> well. Of the 35 lines it produced that
+    passed the quality filter, <b>33 are byte-identical</b> to lines it was trained on.
+    Rebuilding the corpus to give it more to generalise from did not change that number.
     That is what memorisation looks like at this scale — the model reconstructs the voice
     rather than inventing new ones, and a strict filter can't tell its output from the
     original. The numbers in the panel above are computed live from the shipped data, not
@@ -541,7 +542,7 @@ loadProfile();
   const curated = new Set(Object.values(MM_DATA.voice_curated || {}).flat());
   const recalled = model.filter(l => curated.has(l)).length;
   $("brain-panel").textContent =
-    "🧠 the brain: 26.8M params · trained 14,432 steps at home · loss 0.115 · voice reproduced by the model at build time — " +
+    "🧠 the brain: 26.8M params · trained 29,819 steps at home · loss 0.093 · voice reproduced by the model at build time — " +
     model.length + " lines, " + recalled + " of them byte-identical to the script it trained on";
 })();
 refreshBoss();

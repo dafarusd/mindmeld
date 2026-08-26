@@ -11,3 +11,5 @@ ckpt/tokens.pt
 ckpt/train_log.jsonl
 ckpt/train.out
 ckpt/train2.out
+ckpt/train3.out
+ckpt/tokens.corpus

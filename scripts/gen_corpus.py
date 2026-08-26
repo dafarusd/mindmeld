@@ -248,9 +248,23 @@ def personality_docs() -> list[str]:
         (WRONG_GUESS, "wrong guess"), (CORRECT_GUESS, "correct guess"), (SECRET_PICKED, "secret picked"),
         (ANSWER_YES, "answer yes"), (ANSWER_NO, "answer no"), (ANSWER_MAYBE, "answer maybe"),
     ]:
-        for _ in range(10):
+        # The authored lines are the canonical voice, so they repeat — but only
+        # three times, not ten. Repeating 65 fixed strings ten times each is what
+        # produced a model that reproduced 20 of them byte-identically.
+        for _ in range(3):
             for line in group:
                 docs.append(f"GENIE ({label}): {line}")
+
+    # Recombinations of the same authored fragments, one copy each. Same voice,
+    # many more surface forms, so the model has a pattern to generalise instead
+    # of a short list to memorise. See scripts/expand_voice.py.
+    try:
+        from expand_voice import build as _build_variants
+        for label, lines in _build_variants(per_kind=400).items():
+            for line in lines:
+                docs.append(f"GENIE ({label}): {line}")
+    except Exception as exc:  # never let this break a corpus build
+        print(f"  (voice expansion unavailable: {exc})")
     return docs
 
 
