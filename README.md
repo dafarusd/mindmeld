@@ -202,3 +202,7 @@ DEVLOG.md  project journal: what changed, why, and the bugs that mattered
 
 AGPL-3.0-only. See `LICENSE` and `NOTICE` — the dual-licensing terms cover the
 code, the knowledge base and the trained weights.
+
+---
+
+Built by Dafarus — [@Dafarusd on X](https://x.com/Dafarusd)
